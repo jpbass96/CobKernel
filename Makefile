@@ -6,6 +6,7 @@ CPPOBJS := $(CPPSRCS:.cpp=.o)
 AOBJS := $(ASRCS:.S=.o)
 AllOBJS := $(COBJS) $(CPPOBJS) $(AOBJS)
 LOADADDR = 0x80000
+VPATH = src/arch/arm64
 
 GCCFLAGS = -mcpu=cortex-a76 -mlittle-endian -Wall -O0 -ffreestanding \
            -nostartfiles -nostdlib -nostdinc -g -I ./include
@@ -22,23 +23,23 @@ all: clean new baremetal_2712.img
 
 %.o: %.S
 	@echo "as $@"
-	@aarch64-none-elf-gcc $(AFLAGS) -c $< -o $@
+	@gcc $(AFLAGS) -c $< -o $@
 
 %.o: %.c
 	@echo "gcc $@"
-	@aarch64-none-elf-gcc $(CFLAGS) -c $< -o $@
+	@gcc $(CFLAGS) -c $< -o $@
 
 %.o: %.cpp
 	@echo "g++ $@"
-	@aarch64-none-elf-g++ $(CPPFLAGS) -c $< -o $@
+	@g++ $(CPPFLAGS) -c $< -o $@
 
 baremetal_2712.img: $(AllOBJS)
 	@echo "============================================================================="
 	@echo "Linking..."
-	@aarch64-none-elf-ld -o baremetal_2712.elf -Map baremetal_2712.map -nostdlib \
+	@ld -o baremetal_2712.elf -Map baremetal_2712.map -nostdlib \
 		--section-start=.init=$(LOADADDR) --no-warn-rwx-segments \
 		-g -T linker.ld $(AllOBJS)
-	aarch64-none-elf-objcopy -O binary baremetal_2712.elf baremetal_2712.img
+	-objcopy -O binary baremetal_2712.elf baremetal_2712.img
 
 clean:
 	/bin/rm -f baremetal_2712.elf *.o *.img > /dev/null 2> /dev/null || true
