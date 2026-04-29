@@ -14,10 +14,10 @@ GCCFLAGS = -mcpu=cortex-a76 -mlittle-endian -Wall -O0 -ffreestanding \
 AFLAGS = -mcpu=cortex-a76 -mlittle-endian  -I ./include -O0 -g
 
 CFLAGS = -mcpu=cortex-a76 -mlittle-endian -Wall -fsigned-char -ffreestanding -g \
-         -I ./include -O0 -fno-exceptions 
+         -I ./include -O0 -fno-exceptions  -DPRINTF_LONG_SUPPORT
 
 CPPFLAGS = -fno-exceptions -fno-rtti -nostdinc++ -mcpu=cortex-a76 -mlittle-endian -Wall -fsigned-char \
-			  -ffreestanding -g -I ./include -O0 -mstrict-align -std=c++14 -Wno-aligned-new
+			  -ffreestanding -g -I ./include -O0 -mstrict-align -std=c++14 -Wno-aligned-new \
 
 all: clean new baremetal_2712.img
 
@@ -42,7 +42,7 @@ baremetal_2712.img: $(AllOBJS)
 	-objcopy -O binary baremetal_2712.elf baremetal_2712.img
 
 clean:
-	/bin/rm -f baremetal_2712.elf *.o *.img > /dev/null 2> /dev/null || true
+	/bin/rm -f baremetal_2712.elf *.o *.img baremetal_2712.map > /dev/null 2> /dev/null || true
 
 new:
 	/bin/clear
