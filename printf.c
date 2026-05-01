@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
 #include "printf.h"
-
+#include "types.h"
 typedef void (*putcf) (void*,char);
 static putcf stdout_putf;
 static void* stdout_putp;
@@ -55,9 +55,39 @@ static void li2a (long num, char * bf)
     uli2a(num,10,0,bf);
     }
 
+long strtol(const char *str, int base) {
+    long val;
+    u8 negative = 0;
+    while (*str) {
+        if (base == 10 && *str == '-') {
+            negative = 1;
+        }
+
+        //handle regular digit. Shift current val by one digit and add new digit
+        else if ((*str >= '0') && (*str <= '9')) {
+            val = val*base + (*str - '0');
+        }
+
+        //handle lowercase alphabet digit if base > 10
+        else if (base > 10 && (*str >= 'a') && (*str < ((base-10) +  'a'))) {
+            val = val*base + (*str - 'a' + 10);
+        }
+
+        //handle uppercase alphabet digit if base > 10
+        else if (base > 10 && (*str >= 'A') && (*str < ((base-10) + 'A'))) {
+            val = val*base + (*str - 'A' + 10);
+        }
+        else {
+            break;
+        }
+    } 
+
+    val = negative ? val*-1 : val;
+    return val;
+}
+
 #else
 #define ITOA_BF_SIZE 12
-#ERROR
 #endif
 
 static void ui2a(unsigned int num, unsigned int base, int uc,char * bf)

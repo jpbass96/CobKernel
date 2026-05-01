@@ -100,6 +100,11 @@ void tfp_sprintf(char* s,char *fmt, ...);
 
 void tfp_format(void* putp,void (*putf) (void*,char),char *fmt, va_list va);
 
+//TODO: Move functions like this into a string parsing library. Standardize printf.c to use these.
+#ifdef PRINTF_LONG_SUPPORT
+long strtol(const char *str, int base);
+#endif
+
 #define printf tfp_printf 
 #define sprintf tfp_sprintf 
 

@@ -4,8 +4,20 @@
 #include "types.h"
 #include "led.h"
 #include "rp1_pcie.h"
-#define CMDSIZE 128
+#include "util.h"
+#include "types.h"
 
+#define CMDSIZE 256
+#define BKSPC 0x8
+#define ESC 0x1B
+#define DEL 0x7F
+#define CSI_LEFT 'D'
+#define CSI_RIGHT 'C'
+
+enum ansi_state {
+  ANSI_COMMAND,
+  ANSI_CSI
+};
 
 //function to get character from console
 char (*getc)(void);
@@ -27,11 +39,6 @@ int strcmp(const char *s1, const char *s2) {
   // Standard requires treating chars as unsigned for this comparison.
   return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }
-
-
-
-
-
 
 //first function pointer should be getc, then putc, then flush_console
 void init_console(char (*_getc)(void), void (*_putc)(void*, char), void (*_flush_console)(void)) {
@@ -86,14 +93,6 @@ void print_pcie_cfg() {
       }
     }
   }
-  /*for (int i = 0; i < 256; i+=4) {
-    u32 dat;
-
-    dat = rp1_pcie_cfg_read(1, 0, i);
-    
-    printf("PCI Cfg Addr 0x%x: 0x%x\n\r", i, dat);
-    }*/
-
 }
 
 void execute_cmd(char *buf) {
@@ -118,49 +117,160 @@ void execute_cmd(char *buf) {
     help();
   }
 
-  
-
   else {
+    char *tmp;
     printf("Invalid command: %s\n\r", buf);
     help();
-    //printf("\n\r")
+
+    tmp = buf;
+    printf("command hex encoding\n\r");
+    while (*tmp != '\0') {
+      printf("0x%x ", *tmp);
+      tmp++;
+    }
+    printf("\n\r");
   }
-
-
-   
 }
 
+//handles newline and returns new current command position
+static inline char *_handle_newline(char *cmd, char* cur) {
+  *cur = '\0';
+  putc(NULL, '\n');
+  putc(NULL, '\r');
+  cur = cmd;
+  return cur;
+}
+
+static inline char *_handle_del(char *cmd, char *cur) {
+  return cur;
+}
+
+//handles backspace and returns new current command position
+static inline char *_handle_bkspc(char *cmd, char*cur) {
+  //set previous character to NULL in cmd buffer
+  putc(NULL, BKSPC);
+  putc(NULL, ' ');
+  putc(NULL, BKSPC);
+  *(cur) = 0;
+
+  //remain at current position and overwrite next character
+  return cur-1;
+}
+
+//handles escape command code
+char *_handle_esc(char *cmd, char*cur) {
+  char ansi_buf[32];
+  char *_cur = ansi_buf;
   
+
+  enum ansi_state decode_state = ANSI_COMMAND;
+  //emit ESC byte back
+  putc(NULL, ESC);
+  while (_cur != (cmd + CMDSIZE - 1)) {
+    *_cur = getc();
+    
+    switch  (decode_state) {
+      //try to decode command
+      case ANSI_COMMAND:
+        // Move state machine to CSI decode state
+        if (*_cur == '[') {
+          decode_state = ANSI_CSI;
+          putc(NULL, '[');
+        }
+        //unsupported command found. simply return current position and do not modify cmd buffer
+        else {
+          //emit null byte to cancel command
+          putc(NULL, '\0');
+          return cur;
+        }
+        break;
+      case ANSI_CSI:
+        putc(NULL, *_cur);
+        //check if current byte is a command code. Otherwise keep collecting data in ANSI_CSI state
+        //Does not currently correctly decode the ';'
+        if ((*_cur >= 0x40) && (*_cur <= 0x7E)) {
+          char ansi_cmd;
+          u32 arg;
+
+          //save cmd value and set _cur byte back to 0 so strtol finds null byte when decoding argument
+          ansi_cmd = *_cur;
+          *_cur = 0;
+
+          //cur is beginning of escape code, cur+1 is CSI command, cur+2 is start of optional argument
+          //If no argument provided, default to 1
+          if (_cur - cur > 2) {
+            arg = strtol(cur+2, 16); 
+          }
+          else {
+            //arg defaults to 1
+            arg = 1;
+          }
+          
+          //Decode and execute cursor movement command using decoded argument
+          if (ansi_cmd == CSI_LEFT) {
+            cur = max(cmd, (cur - (arg)));
+            return cur;
+          }
+          else if (ansi_cmd == CSI_RIGHT) {
+            cur = min(cmd + CMDSIZE - 1, (cur + (arg)));
+            return cur;
+          }
+        }
+
+        //if ; is detected, emit NULL to cancel command. Not currently supported
+        else if (*_cur == ';') {
+          putc(NULL, '\0');
+        }
+        break;
+    }
+    ++_cur;
+  }
+
+  return cur;
+}
+
 void start_console() {
   //const int CMDSIZE = 128;
   char cmd_buf[CMDSIZE];
   char *cur = cmd_buf;
+  char next;
 
   display_banner();
 
   display_prompt();
   while (1) {
-    *cur = getc();
+    next = getc();
     LED_pulse();
     
-    //if newline received, send newline and carriage return, then execute command
-    //currently hardcoded to work with putty which only sends '\r'
-    if ((*cur == '\n') || (*cur == '\r')) {
-      *cur = '\0';
-      putc(NULL, '\n');
-      putc(NULL, '\r');
-      execute_cmd(cmd_buf);
-      display_prompt();
-      cur = cmd_buf;
-    }
+    switch (next) {
+      //if newline received, send newline and carriage return, then execute command
+     //currently hardcoded to work with putty which only sends '\r'
+      case '\n':
+      case '\r':
+        cur = _handle_newline(cmd_buf, cur);
+        execute_cmd(cmd_buf);
+        display_prompt();
+        break;
+    
+      case BKSPC:
+        cur = _handle_bkspc(cmd_buf, cur);
+        break;
+      case ESC:
+        cur = _handle_esc(cmd_buf, cur);
+        break;
 
-    else {
-      //halt shell until newline if cmd buf is full
-      if (cur != (cmd_buf + CMDSIZE -1 )) {
-	putc(NULL, *cur);
-	cur++;
-      }
-    }
+      case DEL:
+        cur = _handle_del(cmd_buf, cur);
+        break;
+
+      default:
+        //halt shell until newline if cmd buf is full
+        if (cur != (cmd_buf + CMDSIZE -1 )) {
+          *cur = next;
+	        putc(NULL, *cur);
+	        cur++;
+        }
+    } 
   }
 }
 
