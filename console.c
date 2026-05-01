@@ -3,6 +3,7 @@
 #include "printf.h"
 #include "types.h"
 #include "led.h"
+#include "rp1_pcie.h"
 #define CMDSIZE 128
 
 
@@ -59,8 +60,40 @@ void help() {
 
   printf("Cmds List\n\r");
   printf("  reboot\n\r");
+  printf("  get_pcie_windows\n\r");
+  printf("  print_pcie_cfg\n\r");
   printf("  help\n\r");
     
+}
+
+void print_pcie_cfg() {
+
+  for (int bus = 0; bus < 256; bus++) {
+    for (int dev = 0; dev < 32; dev++) {
+      u32 vid;
+
+      vid = rp1_pcie_cfg_read(bus, dev << 3, 0);
+      if (vid != 0xFFFFFFFF) {
+	printf("detected vid at bus %d dev %d\n\r", bus, dev);
+	printf("printing config space \n\r");
+	for (int i = 0; i < 256; i+=4) {
+	  u32 dat;
+	  
+	  dat = rp1_pcie_cfg_read(bus, dev << 3, i);
+    
+	  printf("PCI Cfg Addr 0x%x: 0x%x\n\r", i, dat);
+	}
+      }
+    }
+  }
+  /*for (int i = 0; i < 256; i+=4) {
+    u32 dat;
+
+    dat = rp1_pcie_cfg_read(1, 0, i);
+    
+    printf("PCI Cfg Addr 0x%x: 0x%x\n\r", i, dat);
+    }*/
+
 }
 
 void execute_cmd(char *buf) {
@@ -72,9 +105,20 @@ void execute_cmd(char *buf) {
     reboot();
   }
 
+  else if (!strcmp(buf, "get_pcie_windows")) {
+    rp1_read_pcie_windows();
+  }
+
+  else if (!strcmp(buf, "print_pcie_cfg")) {
+    print_pcie_cfg();
+  }
+
+  
   else if (!strcmp(buf, "help")){
     help();
   }
+
+  
 
   else {
     printf("Invalid command: %s\n\r", buf);
