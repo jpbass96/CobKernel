@@ -25,17 +25,17 @@ typedef void (*putcf) (void*,char);
 static putcf stdout_putf;
 static void* stdout_putp;
 
-
+//Need a larger buffer for the long string than for 32-bit values
 #ifdef PRINTF_LONG_SUPPORT
-
-static void uli2a(unsigned long int num, unsigned int base, int uc,char * bf)
+#define ITOA_BF_SIZE 24
+static void uli2a(unsigned long num, unsigned int base, int uc,char * bf)
     {
     int n=0;
-    unsigned int d=1;
+    unsigned long d=1;
     while (num/d >= base)
         d*=base;         
     while (d!=0) {
-        int dgt = num / d;
+        long dgt = num / d;
         num%=d;
         d/=base;
         if (n || dgt>0|| d==0) {
@@ -55,6 +55,9 @@ static void li2a (long num, char * bf)
     uli2a(num,10,0,bf);
     }
 
+#else
+#define ITOA_BF_SIZE 12
+#ERROR
 #endif
 
 static void ui2a(unsigned int num, unsigned int base, int uc,char * bf)
@@ -125,7 +128,8 @@ static void putchw(void* putp,putcf putf,int n, char z, char* bf)
 
 void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
     {
-    char bf[12];
+
+    char bf[ITOA_BF_SIZE];
     
     char ch;
 
@@ -159,7 +163,7 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
                 case 'u' : {
 #ifdef  PRINTF_LONG_SUPPORT
                     if (lng)
-                        uli2a(va_arg(va, unsigned long int),10,0,bf);
+                        uli2a(va_arg(va, unsigned long),10,0,bf);
                     else
 #endif
                     ui2a(va_arg(va, unsigned int),10,0,bf);
@@ -169,7 +173,7 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
                 case 'd' :  {
 #ifdef  PRINTF_LONG_SUPPORT
                     if (lng)
-                        li2a(va_arg(va, unsigned long int),bf);
+                        li2a(va_arg(va, unsigned long),bf);
                     else
 #endif
                     i2a(va_arg(va, int),bf);
@@ -179,7 +183,7 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
                 case 'x': case 'X' : 
 #ifdef  PRINTF_LONG_SUPPORT
                     if (lng)
-                        uli2a(va_arg(va, unsigned long int),16,(ch=='X'),bf);
+                        uli2a(va_arg(va, unsigned long),16,(ch=='X'),bf);
                     else
 #endif
                     ui2a(va_arg(va, unsigned int),16,(ch=='X'),bf);
