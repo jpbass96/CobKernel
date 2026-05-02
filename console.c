@@ -47,14 +47,8 @@ void init_console(char (*_getc)(void), void (*_putc)(void*, char), void (*_flush
   flush_console = _flush_console;
 }
 
-void display_banner() {
-  printf("\n\r********************************\n\r");
-  printf(    "*     Welcome to cobKernel     *\n\r");
-  printf(    "********************************\n\r");
-}
-
 void display_prompt() {
-  printf("CobKern Console: ");
+  printf("CobKern Husk: ");
 }
 
 void reboot() {
@@ -162,7 +156,6 @@ char *_handle_esc(char *cmd, char*cur) {
   char ansi_buf[32];
   char *_cur = ansi_buf;
   
-
   enum ansi_state decode_state = ANSI_COMMAND;
   //emit ESC byte back
   putc(NULL, ESC);
@@ -235,8 +228,7 @@ void start_console() {
   char *cur = cmd_buf;
   char next;
 
-  display_banner();
-
+  printf("Now Entering Cobkernel Early Husk\n\r");
   display_prompt();
   while (1) {
     next = getc();

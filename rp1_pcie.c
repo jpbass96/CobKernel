@@ -43,8 +43,7 @@
 
 #define PCIE_MISC_MISC_CTRL                             0x4008
 
-#define get_bits_sz(data, start, size) ((data >> start) & ((1 << size) - 1))
-#define get_bits_stop(data, start, stop) ((data >> start) & ((1 << (stop - start + 1)) - 1))
+
 
 
 
