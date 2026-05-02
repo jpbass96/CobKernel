@@ -1,31 +1,19 @@
 #include "base.h"
 #include "util.h"
+#include "printf.h"
+#include "rp1_pcie.h"
 
 void pcie_fixups() {
-  write32(PCIE_BASE + 0x400c, 0x0);
-  write32(PCIE_BASE + 0x4010, 0x0);
-  write32(PCIE_BASE + 0x4070, 0xfff00000);
-  write32(PCIE_BASE + 0x4080, 0x1f);
-  write32(PCIE_BASE + 0x4084, 0x1f);
 
-  write32(PCIE_BASE + 0x4014, 0x0);
-  write32(PCIE_BASE + 0x4018, 0x4);
-  write32(PCIE_BASE + 0x4074, 0xfff00000);
-  write32(PCIE_BASE + 0x4088, 0x1c);
-  write32(PCIE_BASE + 0x408c, 0x1e);
+  write32(PCIE_BASE + 0x4008, 0x263480);
+  write32(PCIE_BASE + 0x40a4, 0x82000);
+  write32(PCIE_BASE + 0x40a8, 0xb2d0000);
+  write32(PCIE_BASE + 0x43c, 0x30060400);
+  write32(PCIE_BASE + 0x188, 0x0);
+  write32(PCIE_BASE + 0xac, 0x420010);
 
-  write32(PCIE_BASE + 0x401c, 0x0);
-  write32(PCIE_BASE + 0x4020, 0x0);
-  write32(PCIE_BASE + 0x4078, 0x10);
-  write32(PCIE_BASE + 0x4090, 0x0);
-  write32(PCIE_BASE + 0x4094, 0x0);
-
-  write32(PCIE_BASE + 0x4024, 0x0);
-  write32(PCIE_BASE + 0x4028, 0x0);
-  write32(PCIE_BASE + 0x407c, 0x10);
-  write32(PCIE_BASE + 0x4098, 0x0);
-  write32(PCIE_BASE + 0x409c, 0x0);
- 
+  rp1_pcie_cfg_write(1, 0, 0x10, 0x80410000);
+  
 }
 
 
