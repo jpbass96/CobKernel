@@ -1,4 +1,3 @@
-
 //TODO  update this to use offsetof later
 .equ ARM_SMCCC_RES_X0_OFFS, (0)
 .equ ARM_SMCCC_RES_X2_OFFS, (16)
@@ -26,4 +25,53 @@
  .align 8
 arm_smccc_smc:
         SMCCC   smc
+
+    
+//void arm64_take_semaphore_exclusive(semaphore sem, u8 wait);
+.global arm64_take_semaphore_exclusive
+arm64_take_semaphore_exclusive:
+    ldaxr x1, [x0] //trying to take exclusive lock
+    cbnz x1, _arm64_sem_spin //if already taken, then spin
+    mov x1, #1 //if not already taken, load value with 1
+    stlxr w2, x1, [x0] //try to write to the lock
+    dmb ish
+    cbnz w2, _arm64_sem_spin
+    ret
+    _arm64_sem_spin: 
+    wfe
+    b arm64_take_semaphore_exclusive
+
+//void arm64_put_semaphore_exclusive(semaphore sem);
+//does this need checking to see if the sem was actually taken?
+.global arm64_put_semaphore_exclusive
+arm64_put_semaphore_exclusive:
+    ldaxr x1, [x0]
+    cbz x1, _put_semaphore_ret //return if sem is already 0
+    //use exclusive store to set the semaphore back to 0
+    mov x1, #0
+    stlxr w2, x1, [x0] //try to write to the lock
+    dmb ish
+    //if the store wasnt successful, retry. This should be an exception
+    //This condition failing is indicative of a software bug. It indicates a thread
+    //released a semaphore it didnt already own.
+    cmp w2, #0
+    bne arm64_put_semaphore_exclusive
+    sev
+    _put_semaphore_ret: ret
+
+//void arm64_init_semaphore(semaphore sem)
+.global arm64_init_semaphore
+arm64_init_semaphore:
+    ldaxr x1, [x0]
+    mov x1, #0
+    stlxr w2, x1, [x0] //try to write to the lock
+    dmb ish
+    mov w0, w2
+    ldr x2, [x0]
+    cmp w2, #0
+    bne arm64_init_semaphore
+    mov w0, w2
+    ret
+  
+
 
