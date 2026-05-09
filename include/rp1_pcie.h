@@ -5,7 +5,7 @@
 void rp1_read_pcie_windows();
 u32 rp1_pcie_cfg_read(u8 bus, u8 devfn, u16 off);
 void rp1_pcie_cfg_write(u8 bus, u8 devfn, u16 off, u32 data);
-
+int rp1_pcie_link_up();
 
 
 #endif

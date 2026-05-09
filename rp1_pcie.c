@@ -14,6 +14,7 @@
 #define PCIE_MEM_WIN0_HI(win)   \
                 PCIE_MISC_CPU_2_PCIE_MEM_WIN0_HI + ((win) * 8)
 
+#define PCIE_MISC_PCIE_STATUS                           0x4068
 #define PCIE_MISC_CPU_2_PCIE_MEM_WIN0_BASE_LIMIT                0x4070
 #define  PCIE_MISC_CPU_2_PCIE_MEM_WIN0_BASE_LIMIT_LIMIT_MASK    0xfff00000
 #define  PCIE_MISC_CPU_2_PCIE_MEM_WIN0_BASE_LIMIT_BASE_MASK     0x0000fff0
@@ -154,4 +155,15 @@ void rp1_read_pcie_windows() {
     printf("MISC_CTRL: %x\n\r", rp1_pcie_read32(PCIE_MISC_MISC_CTRL));
 
   }
+}
+
+int rp1_pcie_link_up() {
+
+  u32 val = read32(PCIE_BASE + PCIE_MISC_PCIE_STATUS);
+  if ((val & 0x30) == 0x30) {
+    
+    return 0;
+    
+  }
+  return -1;
 }
