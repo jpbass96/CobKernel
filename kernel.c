@@ -18,6 +18,8 @@
 
 extern u8 console_initialized;
 
+extern void _secondary_start(u64 ctx);
+extern void _start(u64 ctx);
 
 void _blink_code(int count, int final_state, int delay) {
   LED_off();
@@ -53,14 +55,19 @@ void display_banner() {
   printf(    "********************************\n\r");
 }
 
+int secondary_main(u64 ctx) {
+  while (1) {
+      asm volatile("wfe"); 
+  }
+}
 
-int main (void)
+int main (u64 ctx)
 {
-  //u32* rp1_addr = 0x1f00000000;
-  //0x30000
-  //size_t uart_addr = (size_t)0x1f00030000ULL;
-  
-  
+  //loop forever on this core
+  if (ctx != 0) {
+    secondary_main(ctx);
+  }
+
   int err;
   
   err = 0;
@@ -77,13 +84,29 @@ int main (void)
   console_initialized = 1;
   display_banner();
 
+  printf("Passed in core context is 0x%lx\n\r", ctx);
   get_core_context();
   get_psci_version();
 
   for (int i =0; i < 4; i++) {
     get_core_state(0, i, 0);
   }
-  
+
+  printf("Trying to power other cores\n\r");
+  struct cpu_affinity affinity;
+  affinity.aff0 = 0;
+  affinity.aff2 = 0;
+  affinity.aff3 = 0;
+  for (u64 i = 1; i < 4; i++) {
+    //power on each core
+    affinity.aff1 = i;
+    psci_cpu_on(affinity, (u64)_secondary_start, i);
+  }
+
+  for (int i =0; i < 4; i++) {
+    get_core_state(0, i, 0);
+  }
+
   start_console();
    
   return 0;
