@@ -5,6 +5,6 @@
 
 #include "types.h"
 
-void wait(u32 cycles);
+void wait(u64 cycles);
 
 #endif

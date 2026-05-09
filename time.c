@@ -4,9 +4,9 @@
 
 #include "types.h"
 
-void wait(u32 cycles) 
+void wait(u64 cycles) 
 {
-    volatile u32 i;
+    volatile u64 i;
     for (i = 0; i < cycles; i++) 
     {
         // Empty loop for delay
