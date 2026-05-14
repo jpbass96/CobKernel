@@ -6,7 +6,8 @@
 #include "rp1_pcie.h"
 #include "util.h"
 #include "types.h"
-
+#include "arm.h"
+#include "malloc.h"
 #define CMDSIZE 256
 #define BKSPC 0x8
 #define ESC 0x1B
@@ -57,12 +58,121 @@ void reboot() {
   pi5_watchdog_full_reset();
 }
 
+void sem_test() {
+  
+  arm64_sem sem;
+  u32 status;
+
+  printf("sem address is 0x%lx\n\r", &sem);
+  printf("Sem value is 0x%x\n\r", sem);
+  
+  printf("Trying to init sem\n\r");
+  status = arm64_init_semaphore(&sem);
+  printf("status after init is 0x%x\n\r", status);
+  
+  printf("Trying to take sem\n\r");
+
+  arm64_take_semaphore_exclusive(&sem);
+
+  printf("trying to release sem\n\r");
+  arm64_put_semaphore_exclusive(&sem);
+
+  printf("Sem test complete\n\r");
+
+}
+
+void heap_test() {
+  void *addr1, *addr2, *addr3, *addr4, *addr5;
+  printf("Trying to allocate 64KB\n\r");
+  addr1 = kmalloc(0x10000);
+  printf("allocated address was 0x%lx\n\r", addr1);
+  printf("\n\r");
+  printf("Trying to allocate an additional 65KB\n\r");
+  addr2 = kmalloc(0x10400);
+  printf("allocated address was 0x%lx\n\r", addr2);
+  printf("\n\r");
+  printf("Trying to allocate an additional 256KB\n\r");
+  addr3 = kmalloc(0x40000);
+  printf("allocated address was 0x%lx\n\r", addr3);
+  printf("\n\r");
+  printf("Freeing addr2, and allocating 32KB in its place\n\r");
+  kfree(addr2);
+  addr2 = kmalloc(0x8000);
+  printf("allocated address was 0x%lx\n\r", addr2);
+  printf("\n\r");
+
+  printf("Trying to allocate an additional 980.8125MB\n\r");
+  addr4 = kmalloc(0x3D4D0000);
+  printf("allocated address was 0x%lx\n\r", addr4);
+  printf("\n\r");
+
+  printf("Trying to allocate an additional 64KB\n\r");
+  addr5 = kmalloc(0x400);
+  printf("allocated address was 0x%lx\n\r", addr5);
+  printf("\n\r");
+
+  printf("Trying to allocate an additional 980.8125MB. Expecting this to fail\n\r");
+  printf("allocated address was 0x%lx\n\r", kmalloc(0x3D4D0000));
+  printf("\n\r");
+
+
+  printf("Freeing large allocation\n\r");
+  kfree(addr4);
+
+  printf("Trying to allocate an additional 64KB\n\r");
+  addr4 = kmalloc(0x400);
+  printf("allocated address was 0x%lx\n\r", addr4);
+  printf("\n\r");
+
+
+  printf("Freeing NULL ptr\n\r");
+  kfree(NULL);
+  printf("\n\r");
+
+  printf("Freeing pointer in range but not to start of page\n\r");
+  kfree(addr2 + 8);
+  printf("\n\r");
+
+  printf("Doing double free\n\r");
+  kfree(addr3);
+  kfree(addr3);
+  printf("\n\r");
+
+  printf("Freeing memory outside of heap range\n\r");
+  kfree((void*)0x80000000);
+  printf("\n\r");
+}
+
+void print_long_test() {
+  u32 val = 0xff00ff00;
+  u64 val2 = 0xf123456789abcdefULL;
+
+  u32 val3 = 0x0f00ff00;
+  u64 val4 = 0x0123456789abcdefULL;
+  
+  printf("val deciamal Expected: 4278255360 or -16711936. Actual %d\n\r", val);
+  printf("val deciamal Expected: 0xff00ff00. Actual %x\n\r", val);
+
+  printf("val2 deciamal Expected: ?? or -1070935975390360081. Actual %ld\n\r", val2);
+  printf("val2 deciamal Expected: 0xf123456789abcdef. Actual %lx\n\r", val2);
+
+
+  printf("val3 deciamal Expected: 251723520. Actual %d\n\r", val3);
+  printf("val3 deciamal Expected: 0x0f00ff00. Actual %x\n\r", val3);
+
+  printf("val4 deciamal Expected: 81985529216486895. Actual %ld\n\r", val4);
+  printf("val4 deciamal Expected: 0x0123456789abcdef. Actual %lx\n\r", val4);
+}
+
 void help() {
 
   printf("Cmds List\n\r");
   printf("  reboot\n\r");
   printf("  get_pcie_windows\n\r");
   printf("  print_pcie_cfg\n\r");
+  printf("  sem_test\n\r");
+  printf("  print_long_test\n\r");
+  printf("  heap_test\n\r");
   printf("  help\n\r");
     
 }
@@ -106,6 +216,17 @@ void execute_cmd(char *buf) {
     print_pcie_cfg();
   }
 
+  else if (!strcmp(buf, "sem_test")) {
+    sem_test();
+  }
+
+  else if (!strcmp(buf, "print_long_test")) {
+    print_long_test();
+  }
+
+  else if (!strcmp(buf, "heap_test")) {
+    heap_test();
+  }
   
   else if (!strcmp(buf, "help")){
     help();
