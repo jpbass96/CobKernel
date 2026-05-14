@@ -7,7 +7,7 @@
 u8 console_initialized;
 
 extern void _secondary_start(u64 ctx);
-extern void _start(u64 ctx);
+extern void _start();
 
 void handle_generic_exception(u64 exception) {
   if (console_initialized) {

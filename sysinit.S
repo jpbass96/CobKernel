@@ -7,17 +7,22 @@
 .section .text
 .global sysinit
 sysinit:
+    //setup vector table with generic exception handlers
     ldr x9, =vector_table_el2
     msr VBAR_EL2, x9 //setup vector table for EL2
-    str x0, [sp, #-16]!
+    //str x0, [sp, #-16]!
+
+    //check if we are core 0 
+    mrs x0, MPIDR_EL1
+    BIC x0, x0, 0xFF000000
     cmp x0, #0
+    //If we are core 0, set up mmu tables. otherwise just setup MMU base address
     b.ne _skip_table_setup
     bl setup_early_mmu_tables
     _skip_table_setup: bl setup_early_mmu
-    ldr x0, [sp], #16
-    mov x1, ARM_MMU_TABLE_BASE_LO
-    mov x2, HEAP_START
-    mov x3, HEAP_END
+    //ldr x0, [sp], #16
+    mov x0, HEAP_START
+    mov x1, HEAP_END
     b main
 
 

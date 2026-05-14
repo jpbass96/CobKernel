@@ -20,7 +20,6 @@
 extern u8 console_initialized;
 
 extern void _secondary_start(u64 ctx);
-extern void _start(u64 ctx);
 
 void _blink_code(int count, int final_state, int delay) {
   LED_off();
@@ -56,19 +55,19 @@ void display_banner() {
   printf(    "********************************\n\r");
 }
 
-int secondary_main(u64 ctx) {
-  printf("hello from Core %ld\n\r", ctx);
+int secondary_main() {
+  printf("hello from Core 0x%lx\n\r", get_core_affinity());
   while (1) {
       asm volatile("wfe"); 
   }
 }
 
-int main (u64 ctx, u64 *mmu_base, void *heap_start, void* heap_end)
+int main (void *heap_start, void* heap_end)
 {
   //loop forever on this core
   //TODO: get core context from CPU affinity rather than a kernel argument
-  if (ctx != 0) {
-    secondary_main(ctx);
+  if (get_core_affinity() != 0x0) {
+    secondary_main();
   }
 
   int err;
@@ -87,7 +86,6 @@ int main (u64 ctx, u64 *mmu_base, void *heap_start, void* heap_end)
   console_initialized = 1;
   display_banner();
 
-  printf("Passed in core context is 0x%lx\n\r", ctx);
   get_core_context();
   get_psci_version();
 
@@ -109,9 +107,6 @@ int main (u64 ctx, u64 *mmu_base, void *heap_start, void* heap_end)
   for (int i =0; i < 4; i++) {
     get_core_state(0, i, 0);
   }
-
-  //TODO get this from TTBR_EL2 instead of a kernel variable
-  printf("MMU base table detected at 0x%lx\n\r", mmu_base);
 
   printf("Initializing memory allocator...\n\r");
   init_kheap(heap_start, (size_t)(heap_end - heap_start), 65536);

@@ -3,6 +3,7 @@
 #include "arm.h"
 #include "printf.h"
 #include "util.h"
+#include "arm_mmu.h"
 
 void print_cpsr(u8 elevel) {
   u64 msr, tmp;
@@ -102,14 +103,10 @@ void print_scr_el3() {
 }
 
 u64 get_core_affinity() {
-
   u64 msr;
+  
   readmsr(MPIDR_EL1, msr);
-  printf("Aff0: 0x%x\n\r", get_bits_sz(msr, 0, 8));
-  printf("Aff1: 0x%x\n\r", get_bits_sz(msr, 8, 8));
-  printf("Aff2: 0x%x\n\r", get_bits_sz(msr, 16, 8));
-  printf("Aff3: 0x%x\n\r", get_bits_sz(msr, 32, 8));
-  return msr;
+  return (msr & 0xFFFFFF) | ((msr >> 8) & 0xFF000000);
 }
 
 void get_core_context() {
@@ -126,18 +123,56 @@ void get_core_context() {
   //print_cpsr(2);
 
   //print_scr_el3();
-  get_core_affinity();
+  msr = get_core_affinity();
+  printf("Core affinity is 0x%lx\n\r", msr);
   printf("\n\r");
 
   /*
-check the C bit (bit 2) of SCTLR_EL2. controls cacheability
-check the M bit (bit 0) of SCTLR_EL2. enables MMU
-check TCR_EL2 bits 13:8 for shareability and cacheability
-*/
-readmsr(SCTLR_EL2, msr);
-printf("Bits 2:0 of SCTLR_EL2: 0x%lx\n\r", get_bits_sz(msr, 0, 3));
+  check the C bit (bit 2) of SCTLR_EL2. controls cacheability
+  check the M bit (bit 0) of SCTLR_EL2. enables MMU
+  check TCR_EL2 bits 13:8 for shareability and cacheability
+  */
+  readmsr(SCTLR_EL2, msr);
+  msr = set_bits(msr, 1, 2, 1);
+  writemsr(SCTLR_EL2, msr);
+  printf("SCTLR_EL2: 0x%lx\n\r", msr);
 
-readmsr(TCR_EL2, msr);
-printf("Bits 13:8 of TCR_EL2: 0x%lx\n\r", get_bits_sz(msr, 8, 6));
+  readmsr(TCR_EL2, msr);
+  printf("TCR_EL2: 0x%lx\n\r", msr);
 
+  readmsr(TTBR0_EL2, msr);
+  printf("TTBR0_EL2: 0x%lx\n\r", msr);
+  readmsr(TTBR1_EL2, msr);
+  printf("TTBR1_EL2: 0x%lx\n\r", msr);
+
+  readmsr(ID_AA64MMFR0_EL1, msr);
+  
+  u32 bits;
+  bits = PARANGE_TO_BITS(get_bits_sz(msr, 0, 4));
+  printf("Core supports %d bits of Physical Address\n\r", bits);
+
+  if (bits > 48) {
+    printf("FEAT_LPA Supported\n\r");
+  }
+  else {
+    printf("FEAT_LPA Not Supported\n\r");
+  }
+
+  readmsr(ID_AA64MMFR1_EL1, msr);
+  if (get_bits_sz(msr, 12, 4) != 0) {
+    printf("FEAT_HAFDBS Implemented\n\r");
+  }
+  else {
+    printf("FEAT_HAFDBS not Implemented\n\r");
+  }
+
+  if (get_bits_sz(msr, 12, 4) == 0) {
+    printf("FEAT_HPDS Not Implemented\n\r");
+  }
+  else {
+    if (get_bits_sz(msr, 12, 4) == 1)
+      printf("FEAT_HPDS Implemented\n\r");
+    else
+        printf("FEAT_HPDS2 Implemented\n\r");
+  }
 }

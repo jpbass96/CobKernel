@@ -10,7 +10,6 @@
 _start:
 	ldr	x0, =MEM_KERNEL_STACK
 	mov	sp, x0			// init its stack	
-	mov x0, #0 //set initial core context to be 0
 	b sysinit
 
 //for now assume context id will just be core idx for use in setting up stack
