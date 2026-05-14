@@ -15,6 +15,7 @@
 #include "psci.h"
 #include "kernel_info.h"
 #include "rp1_pcie.h"
+#include "malloc.h"
 
 extern u8 console_initialized;
 
@@ -56,14 +57,16 @@ void display_banner() {
 }
 
 int secondary_main(u64 ctx) {
+  printf("hello from Core %ld\n\r", ctx);
   while (1) {
       asm volatile("wfe"); 
   }
 }
 
-int main (u64 ctx)
+int main (u64 ctx, u64 *mmu_base, void *heap_start, void* heap_end)
 {
   //loop forever on this core
+  //TODO: get core context from CPU affinity rather than a kernel argument
   if (ctx != 0) {
     secondary_main(ctx);
   }
@@ -106,6 +109,12 @@ int main (u64 ctx)
   for (int i =0; i < 4; i++) {
     get_core_state(0, i, 0);
   }
+
+  //TODO get this from TTBR_EL2 instead of a kernel variable
+  printf("MMU base table detected at 0x%lx\n\r", mmu_base);
+
+  printf("Initializing memory allocator...\n\r");
+  init_kheap(heap_start, (size_t)(heap_end - heap_start), 65536);
 
   start_console();
    

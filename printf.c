@@ -21,9 +21,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "printf.h"
 #include "types.h"
+#include "arm.h"
+
 typedef void (*putcf) (void*,char);
 static putcf stdout_putf;
 static void* stdout_putp;
+arm64_sem printf_sem;
 
 //Need a larger buffer for the long string than for 32-bit values
 #ifdef PRINTF_LONG_SUPPORT
@@ -163,7 +166,7 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
     
     char ch;
 
-
+    arm64_take_semaphore_exclusive(&printf_sem);
     while ((ch=*(fmt++))) {
         if (ch!='%') 
             putf(putp,ch);
@@ -233,6 +236,8 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
             }
         }
     abort:;
+
+    arm64_put_semaphore_exclusive(&printf_sem);
     }
 
 
@@ -240,6 +245,7 @@ void init_printf(void* putp,void (*putf) (void*,char))
     {
     stdout_putf=putf;
     stdout_putp=putp;
+    arm64_init_semaphore(&printf_sem);
     }
 
 void tfp_printf(char *fmt, ...)
