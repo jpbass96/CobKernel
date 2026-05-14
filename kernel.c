@@ -88,7 +88,7 @@ int main (void *heap_start, void* heap_end)
   if (err) 
     blink_code(1);
 
-  init_printf(NULL, _write_char);
+  kinit_printf(NULL, _write_char);
 
   init_console(_get_char, _write_char, _wait_fifo_empty);
   console_initialized = 1;

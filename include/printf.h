@@ -92,20 +92,34 @@ regs Kusti, 23.10.2004
 #define __TFP_PRINTF__
 
 #include <stdarg.h>
+#include "arm.h"
 
-void init_printf(void* putp,void (*putf) (void*,char));
+typedef void (*putcf) (void*,char);
 
-void tfp_printf(char *fmt, ...);
+struct char_device {
+    putcf putf;
+    void* putp;
+    arm64_sem sem;
+	boolean thread_safe;
+};
+
+extern struct char_device kernel_console;
+
+void init_printf(struct char_device* dev, void* putp,void (*putf) (void*,char));
+void init_printf_threadsafe(struct char_device* dev, void* putp,void (*putf) (void*,char));
+void kinit_printf(void* putp,void (*putf) (void*,char));
+
+void tfp_printf(struct char_device* dev, char *fmt, ...);
 void tfp_sprintf(char* s,char *fmt, ...);
 
-void tfp_format(void* putp,void (*putf) (void*,char),char *fmt, va_list va);
+void tfp_format(struct char_device *dev, char *fmt, va_list va);
 
 //TODO: Move functions like this into a string parsing library. Standardize printf.c to use these.
 #ifdef PRINTF_LONG_SUPPORT
 long strtol(const char *str, int base);
 #endif
 
-#define printf tfp_printf 
+#define printf(...) tfp_printf(&kernel_console, __VA_ARGS__) 
 #define sprintf tfp_sprintf 
 
 #endif

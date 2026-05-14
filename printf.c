@@ -23,10 +23,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "types.h"
 #include "arm.h"
 
-typedef void (*putcf) (void*,char);
-static putcf stdout_putf;
-static void* stdout_putp;
-arm64_sem printf_sem;
+//global kernel console
+struct char_device kernel_console;
 
 //Need a larger buffer for the long string than for 32-bit values
 #ifdef PRINTF_LONG_SUPPORT
@@ -159,17 +157,18 @@ static void putchw(void* putp,putcf putf,int n, char z, char* bf)
         putf(putp,ch);
     }
 
-void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
+void tfp_format(struct char_device *dev, char *fmt, va_list va)
     {
 
     char bf[ITOA_BF_SIZE];
     
     char ch;
 
-    arm64_take_semaphore_exclusive(&printf_sem);
+    if (dev->thread_safe)
+        arm64_take_semaphore_exclusive(&(dev->sem));
     while ((ch=*(fmt++))) {
         if (ch!='%') 
-            putf(putp,ch);
+            dev->putf(dev->putp,ch);
         else {
             char lz=0;
 #ifdef  PRINTF_LONG_SUPPORT
@@ -200,7 +199,7 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
                     else
 #endif
                     ui2a(va_arg(va, unsigned int),10,0,bf);
-                    putchw(putp,putf,w,lz,bf);
+                    putchw(dev->putp,dev->putf,w,lz,bf);
                     break;
                     }
                 case 'd' :  {
@@ -210,7 +209,7 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
                     else
 #endif
                     i2a(va_arg(va, int),bf);
-                    putchw(putp,putf,w,lz,bf);
+                    putchw(dev->putp,dev->putf,w,lz,bf);
                     break;
                     }
                 case 'x': case 'X' : 
@@ -220,16 +219,16 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
                     else
 #endif
                     ui2a(va_arg(va, unsigned int),16,(ch=='X'),bf);
-                    putchw(putp,putf,w,lz,bf);
+                    putchw(dev->putp,dev->putf,w,lz,bf);
                     break;
                 case 'c' : 
-                    putf(putp,(char)(va_arg(va, int)));
+                    dev->putf(dev->putp,(char)(va_arg(va, int)));
                     break;
                 case 's' : 
-                    putchw(putp,putf,w,0,va_arg(va, char*));
+                    putchw(dev->putp,dev->putf,w,0,va_arg(va, char*));
                     break;
                 case '%' :
-                    putf(putp,ch);
+                    dev->putf(dev->putp,ch);
                 default:
                     break;
                 }
@@ -237,22 +236,32 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
         }
     abort:;
 
-    arm64_put_semaphore_exclusive(&printf_sem);
+    if (dev->thread_safe)
+        arm64_put_semaphore_exclusive(&(dev->sem));
     }
 
+void init_printf(struct char_device* dev, void* putp,void (*putf) (void*,char)) {
+    dev->putf=putf;
+    dev->putp=putp;
+    dev->sem = 0;
+    dev->thread_safe = FALSE;
+}
 
-void init_printf(void* putp,void (*putf) (void*,char))
-    {
-    stdout_putf=putf;
-    stdout_putp=putp;
-    arm64_init_semaphore(&printf_sem);
-    }
+void init_printf_threadsafe(struct char_device* dev, void* putp,void (*putf) (void*,char)) {
+    init_printf(dev, putp, putf);
+    arm64_init_semaphore(&(dev->sem));
+    dev->thread_safe = TRUE;
+}
 
-void tfp_printf(char *fmt, ...)
+void kinit_printf(void* putp,void (*putf) (void*,char)) {
+    init_printf_threadsafe(&kernel_console, putp, putf);
+}
+
+void tfp_printf(struct char_device *dev, char *fmt, ...)
     {
     va_list va;
     va_start(va,fmt);
-    tfp_format(stdout_putp,stdout_putf,fmt,va);
+    tfp_format(dev,fmt,va);
     va_end(va);
     }
 
@@ -261,13 +270,12 @@ static void putcp(void* p,char c)
     *(*((char**)p))++ = c;
     }
 
-
-
-void tfp_sprintf(char* s,char *fmt, ...)
-    {
+void tfp_sprintf(char* s,char *fmt, ...) {
+    struct char_device strdev;
+    init_printf(&strdev, &s, putcp);
     va_list va;
     va_start(va,fmt);
-    tfp_format(&s,putcp,fmt,va);
+    tfp_format(&strdev, fmt, va);
     putcp(&s,0);
     va_end(va);
-    }
+}
