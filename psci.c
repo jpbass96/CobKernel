@@ -48,7 +48,7 @@ s64 get_core_state(u8 thread, u8 core, u8 cluster) {
 static void _wait_cpu_on(struct cpu_affinity affinity) {
     while (get_core_state(affinity.aff0, affinity.aff1, affinity.aff2) != PSCI_STATE_CPU_ON) {
         //wait for approximately 1ms
-        wait(0x249f00);
+        wait_ms(1);
     }
 }
 

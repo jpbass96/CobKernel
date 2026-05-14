@@ -21,31 +21,31 @@ extern u8 console_initialized;
 
 extern void _secondary_start(u64 ctx);
 
-void _blink_code(int count, int final_state, int delay) {
+void _blink_code(int count, int final_state, u64 delay_ms) {
   LED_off();
-  wait(0x6F0000);
+  wait_s(2);
   for (int i = 0; i < count; i++) {
     LED_on();
-    wait(delay);
+    wait_ms(delay_ms);
     LED_off();
   }
 
-  wait(0x6F0000);
+  wait_s(2);
   if (final_state) {
     LED_on();
   }
-  wait(0x6F0000);
+  wait_s(2);
 }
 void blink_code(int err) {
   //success. 3 slow blinks and remain on
   if (err == 0) {
     //wait(0x0F0000);
-     _blink_code(2, 1, 0x3F0000);
+     _blink_code(2, 1, 250);
   }
 
   //pcie link is down
   if (err == 1) {
-    _blink_code(3, 0, 0x0F0000);
+    _blink_code(3, 0, 750);
   }
 }
 
@@ -71,9 +71,16 @@ int main (void *heap_start, void* heap_end)
   }
 
   int err;
-  
   err = 0;
   
+  //init kernel clock first so we can accurately wait on certain events. Needed
+  //for early kernel error codes
+  init_kernel_clk();
+
+  //remove these once proper uart/pcie drivers are implemented.
+  //These are know nregister values written based on a readout
+  //of raspbi when operating at OS. Makes sure baud rate is set correctly,
+  //and that fifos are enabled.
   pcie_fixups();
   uart_fixups();
  
@@ -82,6 +89,7 @@ int main (void *heap_start, void* heap_end)
     blink_code(1);
 
   init_printf(NULL, _write_char);
+
   init_console(_get_char, _write_char, _wait_fifo_empty);
   console_initialized = 1;
   display_banner();

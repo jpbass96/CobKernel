@@ -23,6 +23,6 @@ void LED_on(void)
 
 void LED_pulse() {
   LED_off();
-  wait(0xF00);
+  wait_us(500);
   LED_on();
 }
