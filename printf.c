@@ -59,6 +59,7 @@ static void li2a (long num, char * bf)
 long strtol(const char *str, int base) {
     long val;
     u8 negative = 0;
+    val = 0;
     while (*str) {
         if (base == 10 && *str == '-') {
             negative = 1;
@@ -81,6 +82,7 @@ long strtol(const char *str, int base) {
         else {
             break;
         }
+        str++;
     } 
 
     val = negative ? val*-1 : val;
@@ -163,9 +165,6 @@ void tfp_format(struct char_device *dev, char *fmt, va_list va)
     char bf[ITOA_BF_SIZE];
     
     char ch;
-
-    if (dev->thread_safe)
-        arm64_take_semaphore_exclusive(&(dev->sem));
     while ((ch=*(fmt++))) {
         if (ch!='%') 
             dev->putf(dev->putp,ch);
@@ -236,14 +235,12 @@ void tfp_format(struct char_device *dev, char *fmt, va_list va)
         }
     abort:;
 
-    if (dev->thread_safe)
-        arm64_put_semaphore_exclusive(&(dev->sem));
+   
     }
 
 void init_printf(struct char_device* dev, void* putp,void (*putf) (void*,char)) {
     dev->putf=putf;
     dev->putp=putp;
-    dev->sem = 0;
     dev->thread_safe = FALSE;
 }
 
@@ -257,13 +254,20 @@ void kinit_printf(void* putp,void (*putf) (void*,char)) {
     init_printf_threadsafe(&kernel_console, putp, putf);
 }
 
-void tfp_printf(struct char_device *dev, char *fmt, ...)
-    {
+void tfp_printf(struct char_device *dev, char *fmt, ...) {
+    if (dev->thread_safe)
+        arm64_take_semaphore_exclusive(&(dev->sem));
+
     va_list va;
     va_start(va,fmt);
     tfp_format(dev,fmt,va);
     va_end(va);
-    }
+
+    if (dev->thread_safe)
+        arm64_put_semaphore_exclusive(&(dev->sem));
+}
+
+
 
 static void putcp(void* p,char c)
     {
