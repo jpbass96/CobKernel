@@ -19,6 +19,7 @@ s64 get_core_state(u8 thread, u8 core, u8 cluster) {
     s64 ret;
     struct arm_smccc_res result;
     union psci_affinity_param affinity;
+    
     affinity.affinity.aff0 = thread;
     affinity.affinity.aff1 = core;
     affinity.affinity.aff2 = cluster;
@@ -26,20 +27,23 @@ s64 get_core_state(u8 thread, u8 core, u8 cluster) {
     arm_smccc_smc(AFFINITY_INFO_FUNCID, affinity.raw, 0, 0, 0, 0, 0, 0, &result);
     ret = (s64)(result.a0);
 
-    printf("CPU %x:%x ", cluster, core);
+    char buf[64];
+    sprintf(buf, "CPU %x:%x ", cluster, core);
     switch(ret) {
         case PSCI_STATE_CPU_ON_PENDING:
-            printf("ON_PENDING \n\r");
+            sprintf(buf, "%sON_PENDING \n\r", buf);
             break;
         case PSCI_STATE_CPU_OFF:
-            printf("OFF \n\r");
+            sprintf(buf, "%sOFF \n\r", buf);
             break;
         case PSCI_STATE_CPU_ON:
-            printf("ON \n\r");
+            sprintf(buf, "%sON \n\r");
             break;
         default:
-            printf("INVALID PSCI COMMAND \n\r");
+            sprintf(buf, "%sINVALID PSCI COMMAND \n\r", buf);
     }
+
+    LOG_INFO("%s", buf);
 
     return ret;
 
