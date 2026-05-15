@@ -3,17 +3,28 @@
 #include "types.h"
 #include "printf.h"
 
-#define DEBUG
+#define LOG_LEVEL(level, fmt, ...) printf("[" #level "] " __FILE__ ": " fmt, ##__VA_ARGS__)  
 
-#ifdef DEBUG
-#define LOG_DEBUG(...) printf("[DEBUG] %s: ", __FILE__); \
-                       printf(__VA_ARGS__)
+#ifdef VERBOSITY_DEBUG
+#define VERBOSITY_INFO
+#define LOG_DEBUG(fmt, ...) LOG_LEVEL(DEBUG, fmt, ##__VA_ARGS__)
+//printf("[DEBUG] " __FILE__ ": " fmt, __VA_ARGS__);        
 #else
-#define LOG_DEBUG(...) 
+#define LOG_DEBUG(fmt, ...) 
 #endif
 
-#define LOG_ERROR(...) printf("[ERROR] %s: ", __FILE__); \
-                       printf(__VA_ARGS__)
+#ifdef VERBOSITY_INFO
+#define VERBOSITY_ERROR
+#define LOG_INFO(fmt, ...) LOG_LEVEL(INFO, fmt, ##__VA_ARGS__)
+#else
+#define LOG_INFO(fmt, ...)
+#endif
+
+#ifdef VERBOSITY_ERROR
+#define LOG_ERROR(fmt, ...) LOG_LEVEL(ERROR, fmt, ##__VA_ARGS__)
+#else
+#define LOG_ERROR(fmt, ...)
+#endif
 
 u32 read32(size_t addr);
 void write32(size_t addr, u32 data);
