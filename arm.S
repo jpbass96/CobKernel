@@ -45,8 +45,8 @@ arm64_take_semaphore_exclusive:
 //does this need checking to see if the sem was actually taken?
 .global arm64_put_semaphore_exclusive
 arm64_put_semaphore_exclusive:
+    dmb sy //making sure whatever needed to happen happens before releasing the semaphore
     ldaxr x1, [x0]
-    cbz x1, _put_semaphore_ret //return if sem is already 0
     //use exclusive store to set the semaphore back to 0
     mov x1, #0
     stlxr w2, x1, [x0] //try to write to the lock
@@ -57,7 +57,7 @@ arm64_put_semaphore_exclusive:
     cmp w2, #0
     bne arm64_put_semaphore_exclusive
     sev
-    _put_semaphore_ret: ret
+    ret
 
 //void arm64_init_semaphore(semaphore sem)
 .global arm64_init_semaphore
