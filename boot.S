@@ -19,7 +19,10 @@ _start:
 _secondary_start:
 	ldr x1, =MEM_KERNEL_STACK //load register 1 with kernel stack start
 	ldr x2, =KERNEL_STACK_SIZE //load register 2 with kernel stack size
-	mul x2, x0, x2 //store x2 with stack offset for this core
+	mrs x3, MPIDR_EL1
+	BIC x3, x3, 0xFF000000
+	mov x3, x3, asr #8 //get core idx
+	mul x2, x3, x2 //store x2 with stack offset for this core
 	add x1, x1, x2 //add stack offset to kernel stack start
 	mov sp, x1 //setup stack pointer
 	b sysinit

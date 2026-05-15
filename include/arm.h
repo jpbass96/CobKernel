@@ -27,4 +27,10 @@ extern void arm64_take_semaphore_exclusive(arm64_sem *sem);
 extern void arm64_put_semaphore_exclusive(arm64_sem *sem);
 extern u32 arm64_init_semaphore(arm64_sem *sem);
 
+//check if semaphore is empty as a non-blocking way to get the current state of the semaphore without 
+//enabling the exclusive monitor
+inline boolean arm64_semaphore_taken(arm64_sem *sem) {
+        return *sem == 1;
+}
+
 #endif

@@ -16,10 +16,13 @@
 #include "kernel_info.h"
 #include "rp1_pcie.h"
 #include "malloc.h"
+#include "work_queue.h"
 
 extern u8 console_initialized;
+struct work_queue_entry *queues[3];
 
-extern void _secondary_start(u64 ctx);
+extern void _secondary_start(u64 q);
+
 
 void _blink_code(int count, int final_state, u64 delay_ms) {
   LED_off();
@@ -55,19 +58,21 @@ void display_banner() {
   printf(    "********************************\n\r");
 }
 
-int secondary_main() {
-  printf("hello from Core 0x%lx\n\r", get_core_affinity());
+int secondary_main(struct work_queue_entry *q) {
+
+  printf("hello from Core 0x%lx. Starting work queue\n\r", get_core_affinity());
   while (1) {
-      asm volatile("wfe"); 
+      execute_work(q);
+      //asm volatile("wfe"); 
   }
 }
 
 int main (void *heap_start, void* heap_end)
 {
-  //loop forever on this core
-  //TODO: get core context from CPU affinity rather than a kernel argument
+  //reinterpret heap_start as the work queue arguments and jump to secondary main
+  //if we are a secndary core
   if (get_core_affinity() != 0x0) {
-    secondary_main();
+    secondary_main((struct work_queue_entry *) heap_start);
   }
 
   int err;
@@ -101,7 +106,11 @@ int main (void *heap_start, void* heap_end)
     get_core_state(0, i, 0);
   }
 
+  printf("Initializing memory allocator...\n\r");
+  init_kheap(heap_start, (size_t)(heap_end - heap_start), 65536);
+
   printf("Trying to power other cores\n\r");
+  
   struct cpu_affinity affinity;
   affinity.aff0 = 0;
   affinity.aff2 = 0;
@@ -109,15 +118,20 @@ int main (void *heap_start, void* heap_end)
   for (u64 i = 1; i < 4; i++) {
     //power on each core
     affinity.aff1 = i;
-    psci_cpu_on(affinity, (u64)_secondary_start, i);
+    //create work queue with return buffer sized such that only one page is malloc'd
+    queues[i-1] = create_work_queue_entry();
+    if (queues[i-1] == NULL) {
+      LOG_ERROR("irrecoverable Major error. could not allocate work queue for core %d\n\r", i);
+      reboot();
+
+    }
+    psci_cpu_on(affinity, (u64)_secondary_start, (u64)queues[i-1]);
   }
 
   for (int i =0; i < 4; i++) {
     get_core_state(0, i, 0);
   }
 
-  printf("Initializing memory allocator...\n\r");
-  init_kheap(heap_start, (size_t)(heap_end - heap_start), 65536);
 
   start_console();
    

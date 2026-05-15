@@ -8,12 +8,19 @@
 #include "types.h"
 #include "arm.h"
 #include "malloc.h"
+#include "work_queue.h"
+#include "primes.h"
+#include "time.h"
+
+
 #define CMDSIZE 256
 #define BKSPC 0x8
 #define ESC 0x1B
 #define DEL 0x7F
 #define CSI_LEFT 'D'
 #define CSI_RIGHT 'C'
+
+extern struct work_queue_entry *queues[3];
 
 enum ansi_state {
   ANSI_COMMAND,
@@ -56,6 +63,36 @@ void reboot() {
   printf("Rebooting...");
   flush_console();
   pi5_watchdog_full_reset();
+}
+
+//inline int _calculate_primes_task_handler(void *params) { return calculate_primes(*(u64*)params, *(u64*)((void*)params + sizeof(u64)));}
+
+void prime_multicore_test(u64 primes, u8 num_cores, u64 minimum_work_size) {
+
+  u64 params[6];
+  u64 start, stop;
+  u64 primes_per_core;
+  
+  // this could truncate number so be careful with you parameters!
+  primes_per_core = primes / num_cores;
+
+  LOG_INFO("Executing multicore prime calculation test. Primes Per Core : %ld, cores: %d, work_size: %ld\n\r", primes_per_core, num_cores, minimum_work_size);
+  start = get_kernel_time_us();
+  for (u64 i=0; i < primes_per_core*num_cores; i+= minimum_work_size*num_cores) {
+    for (u8 qidx = 0; qidx < num_cores; qidx++) {
+      params[qidx*2] = i + (qidx *  minimum_work_size);
+      params[qidx*2+1]  = i + ((qidx + 1) *  minimum_work_size);
+      LOG_DEBUG("Putting work into q %d\n\r", qidx);
+      QUEUE_WORK(queues[qidx], calculate_primes, (void*)(&params[qidx*2]));
+    }
+    for (u8 qidx = 0; qidx < num_cores; qidx++) {
+      LOG_DEBUG("Waitng for work done on q %d\n\r", qidx);
+      wait_work_done(queues[qidx]);
+    }
+  }
+  stop = get_kernel_time_us();
+  LOG_INFO("Operation took %ld us\n\r", stop - start);
+
 }
 
 void sem_test() {
@@ -172,6 +209,7 @@ void help() {
   printf("  print_pcie_cfg\n\r");
   printf("  sem_test\n\r");
   printf("  print_long_test\n\r");
+  printf("  prime_multicore_test\n\r");
   printf("  heap_test\n\r");
   printf("  help\n\r");
     
@@ -199,7 +237,45 @@ void print_pcie_cfg() {
   }
 }
 
+char *get_next_arg(char *buf, char *end) {
+  
+  //find the first position where *buf is NULL indicating a split
+  while ((buf < (end-1)) && (*buf != '\0')) {
+    buf++;
+  }
+
+  //find the next non-zero position in case there were multiple spaces in the oken
+  while ((buf < (end-1)) && (*buf == '\0')) {
+    buf++;
+  }
+
+  //if the next non-zero argument at or 1 away from the end, then we cannot parse anymore arguments. return NULL
+  if (buf >= (end-1)) //if we are at the very end, there are no more args)
+    return NULL;
+
+  //return current position as it holds the non-zero character
+  return buf;
+
+}
+
+char *split_args(char *buf) {
+  char *cur = buf;
+
+  while ((*cur != '\0')) {
+    if (*cur == ' ') {
+      *cur = '\0';
+    }
+    cur++;
+  }
+  return cur;
+}
+
 void execute_cmd(char *buf) {
+  char *end;
+
+  //add 1 so we dont exlude the final '\0' byte
+  //TODO: Add in checks to make sure we dont accidentally overflow the command buffer
+  end = split_args(buf)+1;
 
   if (*buf == 0)
     return;
@@ -228,6 +304,24 @@ void execute_cmd(char *buf) {
     heap_test();
   }
   
+  else if (!strcmp(buf, "prime_multicore_test")) {
+    u64 args[3];
+
+    char *nxt;
+    nxt = buf;
+  
+    for (int i = 0; i < 3; i++) {
+      //args[i] = 0ULL;
+      nxt = get_next_arg(nxt, end);
+      if (nxt == NULL)
+        goto _err_parse;
+      args[i] = strtol(nxt, 10);
+    }
+  
+    prime_multicore_test(args[0], args[1], args[2]);
+    return;
+    _err_parse: LOG_ERROR("Must provide 3 integer arguments to prime_multicore_test\n\r");
+  }
   else if (!strcmp(buf, "help")){
     help();
   }
