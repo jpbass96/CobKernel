@@ -8,13 +8,15 @@ AllOBJS := $(COBJS) $(CPPOBJS) $(AOBJS)
 LOADADDR = 0x80000
 VPATH = src/arch/arm64
 
+COBKERNEL_VERBOSITY ?= VERBOSITY_DEBUG
+
 GCCFLAGS = -mcpu=cortex-a76 -mlittle-endian -Wall -O0 -ffreestanding \
            -nostartfiles -nostdlib -nostdinc -g -I ./include
 
 AFLAGS = -mcpu=cortex-a76 -mlittle-endian  -I ./include -O0 -g
 
 CFLAGS = -mcpu=cortex-a76 -mlittle-endian -Wall -fsigned-char -ffreestanding -g \
-         -I ./include -O0 -fno-exceptions  -DPRINTF_LONG_SUPPORT
+         -I ./include -O0 -fno-exceptions  -DPRINTF_LONG_SUPPORT -D$(COBKERNEL_VERBOSITY)
 
 CPPFLAGS = -fno-exceptions -fno-rtti -nostdinc++ -mcpu=cortex-a76 -mlittle-endian -Wall -fsigned-char \
 			  -ffreestanding -g -I ./include -O0 -mstrict-align -std=c++14 -Wno-aligned-new \

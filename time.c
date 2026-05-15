@@ -40,6 +40,10 @@ void _wait_us(struct clock *clk, u64 us) {
     }
 }
 
+u64 get_kernel_time_us() {
+    return CYCLES_TO_US(kernel_clock.read_count(), kernel_clock.frequency);
+}
+
 void init_kernel_clk() {
     aarch64_init_sysclk(&kernel_clock);
 }
