@@ -11,6 +11,7 @@
 #include "work_queue.h"
 #include "primes.h"
 #include "time.h"
+#include "bcm2712_temp.h"
 
 
 #define CMDSIZE 256
@@ -201,6 +202,15 @@ void print_long_test() {
   printf("val4 deciamal Expected: 0x0123456789abcdef. Actual %lx\n\r", val4);
 }
 
+void get_temp() {
+  int val;
+  int status;
+  status = bcm2712_get_temp(&val);
+  if (status == 0)
+    LOG_INFO("Temperature is currently %d mK\n\r", val);
+  else
+    LOG_ERROR("Could not read temperature\n\r");
+}
 void help() {
 
   printf("Cmds List\n\r");
@@ -210,6 +220,7 @@ void help() {
   printf("  sem_test\n\r");
   printf("  print_long_test\n\r");
   printf("  prime_multicore_test\n\r");
+  printf("  get_temp");
   printf("  heap_test\n\r");
   printf("  help\n\r");
     
@@ -321,6 +332,10 @@ void execute_cmd(char *buf) {
     prime_multicore_test(args[0], args[1], args[2]);
     return;
     _err_parse: LOG_ERROR("Must provide 3 integer arguments to prime_multicore_test\n\r");
+  }
+
+  else if(!strcmp(buf, "get_temp")) {
+    get_temp();
   }
   else if (!strcmp(buf, "help")){
     help();
