@@ -32,8 +32,8 @@ void write32(size_t addr, u32 data);
 #define get_bits_sz(data, start, size) ((data >> start) & ((1 << size) - 1))
 #define get_bits_stop(data, start, stop) ((data >> start) & ((1 << (stop - start + 1)) - 1))
 
-#define _set_bits_mask(start, size) ((((1 << (size)) - 1)) << (start))
-#define _clear_bits(data, start, size)  ((data) & ~_set_bits_mask(start, size))
+#define bitmask(start, size) ((((1 << (size)) - 1)) << (start))
+#define _clear_bits(data, start, size)  ((data) & ~bitmask(start, size))
 #define set_bits(data, val, start, size) _clear_bits(data, start, size) | ((val) << (start))
 
 #define min(a, b)  ((a) < (b) ? (a) : (b))

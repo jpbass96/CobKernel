@@ -4,7 +4,7 @@
 #include "printf.h"
 #include "pci_ecam.h"
 
-
+//add GPL header here for code lifted from linux kernel.
 
 #define PCIE_MISC_CPU_2_PCIE_MEM_WIN0_LO                0x400c
 #define PCIE_MEM_WIN0_LO(win)   \

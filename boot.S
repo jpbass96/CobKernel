@@ -1,6 +1,7 @@
 //
 // boot.S
-//
+// Initial code taken from tutorial on www.satyria.de
+// Has since been heavily modified
 
 #include "config.h"
 

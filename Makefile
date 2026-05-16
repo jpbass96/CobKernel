@@ -1,3 +1,6 @@
+# Initial code taken from tutorial on www.satyria.de
+# Has since been modified
+
 CSRCS := $(wildcard *.c)
 CPPSRCS := $(wildcard *.cpp)
 ASRCS := $(wildcard *.S)
@@ -6,6 +9,7 @@ CPPOBJS := $(CPPSRCS:.cpp=.o)
 AOBJS := $(ASRCS:.S=.o)
 AllOBJS := $(COBJS) $(CPPOBJS) $(AOBJS)
 LOADADDR = 0x80000
+
 VPATH = src/arch/arm64
 
 COBKERNEL_VERBOSITY ?= VERBOSITY_DEBUG

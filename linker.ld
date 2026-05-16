@@ -1,3 +1,4 @@
+# Initial code taken from tutorial on www.satyria.de
 ENTRY(_start)
 
 SECTIONS
