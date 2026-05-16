@@ -1,5 +1,6 @@
 // kernel.c
-//
+// Initial code taken from tutorial on www.satyria.de
+// Has since been heavily modified
 
 #include "led.h"
 #include "time.h"
