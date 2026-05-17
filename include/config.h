@@ -8,6 +8,14 @@
 .equ MEGABYTE, 0x100000
 .equ KILOBYTE, 0x400
 .equ NUM_CORES, 4
+
+//From bcm2712.dtsi
+//atf@0 {
+//			reg = <0x0 0x0 0x0 0x80000>;
+//			no-map;
+//		};
+//ARM Trusted Firmware occupies the first 512KiB of memory. Our Kernel
+//Must start after that
 .equ MEM_KERNEL_START, 0x80000 // Start address of the main program
 .equ KERNEL_MAX_SIZE, (8 * MEGABYTE)
 .equ MEM_KERNEL_END, (MEM_KERNEL_START + KERNEL_MAX_SIZE)
