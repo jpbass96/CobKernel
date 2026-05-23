@@ -11,8 +11,9 @@
 #include "work_queue.h"
 #include "primes.h"
 #include "time.h"
+#include "string.h"
 #include "bcm2712_temp.h"
-
+#include "math.h"
 
 #define CMDSIZE 256
 #define BKSPC 0x8
@@ -22,6 +23,8 @@
 #define CSI_RIGHT 'C'
 
 extern struct work_queue_entry *queues[3];
+extern void *__cmd_start;
+extern void *__cmd_end;
 
 enum ansi_state {
   ANSI_COMMAND,
@@ -30,15 +33,11 @@ enum ansi_state {
 
 //function to get character from console
 char (*getc)(void);
-
 //function to put char to console. used for echoing
 void (*putc)(void*, char);
-
 void (*flush_console)(void);
 
-
 int strcmp(const char *s1, const char *s2) {
-  
   // Iterate as long as characters match and we haven't hit the end of s1
   while (*s1 && (*s1 == *s2)) {
     s1++;
@@ -54,49 +53,74 @@ void init_console(char (*_getc)(void), void (*_putc)(void*, char), void (*_flush
   getc = _getc;
   putc = _putc;
   flush_console = _flush_console;
+  
 }
 
 void display_prompt() {
   printf("CobKern Husk: ");
 }
 
-void reboot() {
+int reboot(void *params) {
   printf("Rebooting...");
   flush_console();
   pi5_watchdog_full_reset();
+  return 0;
 }
+REGISTER_COMMAND("reboot", "no help", reboot, 0)
 
 //inline int _calculate_primes_task_handler(void *params) { return calculate_primes(*(u64*)params, *(u64*)((void*)params + sizeof(u64)));}
 
-void prime_multicore_test(u64 primes, u8 num_cores, u64 minimum_work_size) {
+int prime_multicore_test(void *_params) {
+
+  struct __attribute__((packed)) prime_params {
+    u64 primes;
+    u32 num_cores;
+    u64 minimum_work_size;
+  };
+
+  struct prime_params *pparams = (struct prime_params *)_params;
 
   u64 params[6];
   u64 start, stop;
   u64 primes_per_core;
   
   // this could truncate number so be careful with you parameters!
-  primes_per_core = primes / num_cores;
+  primes_per_core = pparams->primes / pparams->num_cores;
 
-  LOG_INFO("Executing multicore prime calculation test. Primes Per Core : %ld, cores: %d, work_size: %ld\n\r", primes_per_core, num_cores, minimum_work_size);
+  LOG_INFO("Executing multicore prime calculation test. Primes Per Core : %ld, cores: %d, work_size: %ld\n\r", primes_per_core, pparams->num_cores, pparams->minimum_work_size);
+  
   start = get_kernel_time_us();
-  for (u64 i=0; i < primes_per_core*num_cores; i+= minimum_work_size*num_cores) {
-    for (u8 qidx = 0; qidx < num_cores; qidx++) {
-      params[qidx*2] = i + (qidx *  minimum_work_size);
-      params[qidx*2+1]  = i + ((qidx + 1) *  minimum_work_size);
+  for (u64 i=0; i < primes_per_core*pparams->num_cores; i+= pparams->minimum_work_size*pparams->num_cores) {
+    for (u8 qidx = 0; qidx < pparams->num_cores; qidx++) {
+      params[qidx*2] = i + (qidx *  pparams->minimum_work_size);
+      params[qidx*2+1]  = i + ((qidx + 1) *  pparams->minimum_work_size);
       LOG_DEBUG("Putting work into q %d\n\r", qidx);
       QUEUE_WORK(queues[qidx], calculate_primes, (void*)(&params[qidx*2]));
     }
-    for (u8 qidx = 0; qidx < num_cores; qidx++) {
+    for (u8 qidx = 0; qidx < pparams->num_cores; qidx++) {
       LOG_DEBUG("Waitng for work done on q %d\n\r", qidx);
       wait_work_done(queues[qidx]);
     }
   }
   stop = get_kernel_time_us();
   LOG_INFO("Operation took %ld us\n\r", stop - start);
+  return 0;
+}
+REGISTER_COMMAND("prime_multicore_test", "nohelp", prime_multicore_test, 3, CMD_LONG, CMD_INT, CMD_LONG)
 
+int sqrt_test(void *params) {
+  u64 val;
+  val = *(u64*)params;
+
+  LOG_INFO("Val is %ld\n\r", val);
+  val = sqrt(val);
+  LOG_INFO("sqrt of Val is %ld\n\r", val);
+  return 0;
 }
 
-void sem_test() {
+REGISTER_COMMAND("sqrt_test", "nohelp", sqrt_test, 1, CMD_LONG)
+
+int sem_test(void *params;) {
   
   arm64_sem sem;
   u32 status;
@@ -116,10 +140,11 @@ void sem_test() {
   arm64_put_semaphore_exclusive(&sem);
 
   printf("Sem test complete\n\r");
-
+  return 0;
 }
+REGISTER_COMMAND("sem_test", "nohelp", sem_test, 0)
 
-void heap_test() {
+int heap_test(void *params) {
   void *addr1, *addr2, *addr3, *addr4, *addr5;
   printf("Trying to allocate 64KB\n\r");
   addr1 = kmalloc(0x10000);
@@ -153,7 +178,6 @@ void heap_test() {
   printf("allocated address was 0x%lx\n\r", kmalloc(0x3D4D0000));
   printf("\n\r");
 
-
   printf("Freeing large allocation\n\r");
   kfree(addr4);
 
@@ -161,7 +185,6 @@ void heap_test() {
   addr4 = kmalloc(0x400);
   printf("allocated address was 0x%lx\n\r", addr4);
   printf("\n\r");
-
 
   printf("Freeing NULL ptr\n\r");
   kfree(NULL);
@@ -179,9 +202,12 @@ void heap_test() {
   printf("Freeing memory outside of heap range\n\r");
   kfree((void*)0x80000000);
   printf("\n\r");
-}
 
-void print_long_test() {
+  return 0;
+}
+REGISTER_COMMAND("heap_test", "nohelp", heap_test, 0)
+
+int print_long_test(void *params) {
   u32 val = 0xff00ff00;
   u64 val2 = 0xf123456789abcdefULL;
 
@@ -200,33 +226,39 @@ void print_long_test() {
 
   printf("val4 deciamal Expected: 81985529216486895. Actual %ld\n\r", val4);
   printf("val4 deciamal Expected: 0x0123456789abcdef. Actual %lx\n\r", val4);
+  return 0;
 }
 
-void get_temp() {
+REGISTER_COMMAND("print_long_test", "nohelp", print_long_test, 0)
+
+int get_temp(void *params) {
   int val;
   int status;
   status = bcm2712_get_temp(&val);
   if (status == 0)
-    LOG_INFO("Temperature is currently %d mK\n\r", val);
+    LOG_INFO("Temperature is currently %d mC\n\r", val);
   else
     LOG_ERROR("Could not read temperature\n\r");
+
+  return 0;
 }
-void help() {
+
+REGISTER_COMMAND("get_temp", "nohelp", get_temp, 0)
+
+int help(void *params) {
+  struct console_command *cmd;
+  struct console_command *cmdstart = (struct console_command *)&__cmd_start;
+  struct console_command *cmdend =  (struct console_command *)&__cmd_end;
 
   printf("Cmds List\n\r");
-  printf("  reboot\n\r");
-  printf("  get_pcie_windows\n\r");
-  printf("  print_pcie_cfg\n\r");
-  printf("  sem_test\n\r");
-  printf("  print_long_test\n\r");
-  printf("  prime_multicore_test\n\r");
-  printf("  get_temp");
-  printf("  heap_test\n\r");
-  printf("  help\n\r");
-    
+  for (cmd = cmdstart; cmd < cmdend; cmd++) {
+    printf("  %s: %s\n\r", cmd->name, cmd->help);
+  }
+  return 0;
 }
+REGISTER_COMMAND("help", "nohelp", help, 0)
 
-void print_pcie_cfg() {
+int print_pcie_cfg(void *params) {
 
   for (int bus = 0; bus < 256; bus++) {
     for (int dev = 0; dev < 32; dev++) {
@@ -246,7 +278,11 @@ void print_pcie_cfg() {
       }
     }
   }
+
+  return 0;
 }
+
+REGISTER_COMMAND("print_pcie_cfg", "nohelp", print_pcie_cfg, 0)
 
 char *get_next_arg(char *buf, char *end) {
   
@@ -281,18 +317,88 @@ char *split_args(char *buf) {
   return cur;
 }
 
+void _execute_cmd(struct console_command *cmd, char *buf, char *end) {
+
+  char *nxt;
+  void *params;
+  void *curparam;
+  u64 arg;
+  nxt = buf;
+  u8 argsize;
+  
+  params = kmalloc(CMDSIZE);
+  curparam = params;
+  for (int i = 0; i < cmd->numargs; i++) {
+    nxt = split_get_next(nxt, end);
+    if (nxt == NULL) {
+      LOG_ERROR("invalid number of arguments for cmd %s\n\r", cmd->name);
+      return;
+    }
+    switch (cmd->arg_typearr[i]) {
+    
+      case CMD_LONG:
+      case CMD_PTR:
+        argsize = sizeof(long);
+        arg = strtol(nxt, 10);
+        *(unsigned long*)curparam = arg;
+        break;
+      case CMD_INT:
+        argsize = sizeof(int);
+        arg = strtol(nxt, 10);
+        *(unsigned int*)curparam = (unsigned int)arg;
+        break;
+      case CMD_STR:
+        LOG_ERROR("CMD_STR NOT YET SUPPORTED\n\r");
+        return;
+        break;
+      default:
+        LOG_ERROR("Invalid command argument\n\r");
+        return;
+        break;
+    }
+    curparam += argsize;
+  }
+  cmd->cmd_ptr(params);
+  kfree(params);
+}
+
+void execute_cmd(char *buf) {
+  struct console_command *cmd, *cmdstart, *cmdend;
+  cmdstart = (struct console_command *)&__cmd_start;
+  cmdend =  (struct console_command *)&__cmd_end;
+  char *end;
+  
+  if (*buf == 0)
+    return;
+
+  //cmd = (struct console_command *)&__cmd_start;
+  end = split_str(buf, CMDSIZE, ' ');
+  LOG_INFO("comparing: %s\n\r", buf);
+  for (cmd = cmdstart; cmd < cmdend; cmd++) {
+    if (!strcmp(buf, cmd->name)) {
+      
+      LOG_INFO("name: %s\n\r", cmd->name);
+      _execute_cmd(cmd, buf, end);
+      return;
+    }
+  }
+
+  LOG_ERROR("Invalid command %s\n\r", buf);
+  help(NULL);
+}
+/*
 void execute_cmd(char *buf) {
   char *end;
 
   //add 1 so we dont exlude the final '\0' byte
   //TODO: Add in checks to make sure we dont accidentally overflow the command buffer
-  end = split_args(buf)+1;
-
+  end = split_str(buf, CMDSIZE, ' ');
+  
   if (*buf == 0)
     return;
   
   else if (!strcmp(buf, "reboot")) {
-    reboot();
+    reboot(NULL);
   }
 
   else if (!strcmp(buf, "get_pcie_windows")) {
@@ -323,7 +429,7 @@ void execute_cmd(char *buf) {
   
     for (int i = 0; i < 3; i++) {
       //args[i] = 0ULL;
-      nxt = get_next_arg(nxt, end);
+      nxt = split_get_next(nxt, end);
       if (nxt == NULL)
         goto _err_parse;
       args[i] = strtol(nxt, 10);
@@ -354,7 +460,7 @@ void execute_cmd(char *buf) {
     }
     printf("\n\r");
   }
-}
+}*/
 
 //handles newline and returns new current command position
 static inline char *_handle_newline(char *cmd, char* cur) {
@@ -460,6 +566,7 @@ void start_console() {
 
   printf("Now Entering Cobkernel Early Husk\n\r");
   display_prompt();
+  
   while (1) {
     next = getc();
     LED_pulse();

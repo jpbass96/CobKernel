@@ -35,5 +35,10 @@ SECTIONS
 		*(COMMON)
 		__bss_end = .;
 	}
+	.cmd_array : {
+		__cmd_start = .;
+		KEEP(*(.cmd_array*))
+		__cmd_end = .;
+	}
 }
 __bss_size = (__bss_end - __bss_start) >> 3;

@@ -123,7 +123,7 @@ int main (void *heap_start, void* heap_end)
     queues[i-1] = create_work_queue_entry();
     if (queues[i-1] == NULL) {
       LOG_ERROR("irrecoverable Major error. could not allocate work queue for core %d\n\r", i);
-      reboot();
+      reboot(NULL);
 
     }
     psci_cpu_on(affinity, (u64)_secondary_start, (u64)queues[i-1]);

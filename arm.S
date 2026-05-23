@@ -73,5 +73,13 @@ arm64_init_semaphore:
     mov w0, w2
     ret
   
+  .global sqrt
+  sqrt:
+    fmov d0, x0
+    ucvtf d0, d0
+    fsqrt d0, d0
+    fcvtzu x0, d0
+    ret
+
 
 

@@ -155,6 +155,8 @@ void *_malloc(struct memory_region *region, size_t num_bytes) {
     addr = (((page_table_start - region->page_table) / sizeof(void*)) * region->page_size) + region->top;
 
     _semfree: arm64_put_semaphore_exclusive(&(region->sem)) ;
+
+    LOG_DEBUG("Returning address 0x%lx\n\r", addr);
      return addr;
 }
 

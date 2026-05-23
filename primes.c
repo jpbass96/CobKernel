@@ -4,6 +4,7 @@
 #include "primes.h"
 #include "util.h"
 #include "kernel_info.h"
+#include "math.h"
 
 int calculate_primes(u64 start, u64 stop) {
     boolean is_prime;
@@ -18,7 +19,7 @@ int calculate_primes(u64 start, u64 stop) {
         is_prime = TRUE;
         //we already know it is not divisible by 2, so start at 3.
         //go up to i/2 since mathematically 2 is the lowest possible divisor
-        for (u64 j=3; j < (i/2); j++) {
+        for (u64 j=3; j <= sqrt(i); j++) {
             if (i%j == 0) {
                 is_prime = FALSE;
                 break;
