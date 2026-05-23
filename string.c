@@ -47,7 +47,6 @@ char *split_get_next(char *buf, char *end) {
 
 }
 
-
 char *split_str(char *buf, u32 size, char token) {
   char *cur = buf;
   char *end = buf + size;
@@ -59,4 +58,15 @@ char *split_str(char *buf, u32 size, char token) {
     cur++;
   }
   return cur;
+}
+
+int strcmp(const char *s1, const char *s2) {
+  // Iterate as long as characters match and we haven't hit the end of s1
+  while (*s1 && (*s1 == *s2)) {
+    s1++;
+    s2++;
+  }
+  // Return the difference of the first non-matching characters.
+  // Standard requires treating chars as unsigned for this comparison.
+  return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }

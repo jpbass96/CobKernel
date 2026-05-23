@@ -77,7 +77,7 @@
 //					"syscon", "simple-mfd";
 //		reg = <0x7d542000 0xf00>;
 //AVS is at base address 0x7d542000 on the SOC bus
-#define AVS_TEMP_BASE (RPI5_SOC_BASE + 0x107d542000ULL)
+#define AVS_TEMP_BASE (RPI5_SOC_BASE + 0x7d542000ULL)
 
 //from bcm2712.dtsi
 //gio_aon: gpio@7d517c00 {

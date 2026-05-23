@@ -33,7 +33,6 @@ struct console_command {
     cmd_arg_type arg_typearr[8];
 };
 
-int strcmp(const char *s1, const char *s2);
 void init_console(char (*_getc)(void), void (*putc)(void*, char), void (*flush_console)(void));
 int reboot(void* params);
 int help(void *params);

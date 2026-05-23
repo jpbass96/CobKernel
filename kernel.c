@@ -24,7 +24,6 @@ struct work_queue_entry *queues[3];
 
 extern void _secondary_start(u64 q);
 
-
 void _blink_code(int count, int final_state, u64 delay_ms) {
   LED_off();
   wait_s(2);

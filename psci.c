@@ -37,7 +37,7 @@ s64 get_core_state(u8 thread, u8 core, u8 cluster) {
             sprintf(buf, "%sOFF \n\r", buf);
             break;
         case PSCI_STATE_CPU_ON:
-            sprintf(buf, "%sON \n\r");
+            sprintf(buf, "%sON \n\r", buf);
             break;
         default:
             sprintf(buf, "%sINVALID PSCI COMMAND \n\r", buf);

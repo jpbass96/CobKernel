@@ -35,7 +35,6 @@ void print_cpsr(u8 elevel) {
     case 0b00000:
       printf("  User State\n\r");
       break;
-
     case 0b00001:
       printf("  FIQ State\n\r");
       break;
@@ -89,7 +88,6 @@ void print_scr_el3() {
 
     u64 msr;
 
-  
     printf("Reading SCR_EL3\n\r");
     readmsr(SCR_EL3, msr);
 
@@ -119,8 +117,7 @@ void get_core_context() {
   readmsr(CurrentEL, msr);
   printf("curentEL val is 0x%lx\n\r", msr);
 
-  //print_cpsr(1);
-  //print_cpsr(2);
+
 
   //print_scr_el3();
   msr = get_core_affinity();
@@ -133,8 +130,6 @@ void get_core_context() {
   check TCR_EL2 bits 13:8 for shareability and cacheability
   */
   readmsr(SCTLR_EL2, msr);
-  msr = set_bits(msr, 1, 2, 1);
-  writemsr(SCTLR_EL2, msr);
   printf("SCTLR_EL2: 0x%lx\n\r", msr);
 
   readmsr(TCR_EL2, msr);

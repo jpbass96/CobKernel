@@ -37,17 +37,6 @@ char (*getc)(void);
 void (*putc)(void*, char);
 void (*flush_console)(void);
 
-int strcmp(const char *s1, const char *s2) {
-  // Iterate as long as characters match and we haven't hit the end of s1
-  while (*s1 && (*s1 == *s2)) {
-    s1++;
-    s2++;
-  }
-  // Return the difference of the first non-matching characters.
-  // Standard requires treating chars as unsigned for this comparison.
-  return *(const unsigned char*)s1 - *(const unsigned char*)s2;
-}
-
 //first function pointer should be getc, then putc, then flush_console
 void init_console(char (*_getc)(void), void (*_putc)(void*, char), void (*_flush_console)(void)) {
   getc = _getc;
@@ -117,10 +106,9 @@ int sqrt_test(void *params) {
   LOG_INFO("sqrt of Val is %ld\n\r", val);
   return 0;
 }
-
 REGISTER_COMMAND("sqrt_test", "nohelp", sqrt_test, 1, CMD_LONG)
 
-int sem_test(void *params;) {
+int sem_test(void *params) {
   
   arm64_sem sem;
   u32 status;
@@ -386,81 +374,6 @@ void execute_cmd(char *buf) {
   LOG_ERROR("Invalid command %s\n\r", buf);
   help(NULL);
 }
-/*
-void execute_cmd(char *buf) {
-  char *end;
-
-  //add 1 so we dont exlude the final '\0' byte
-  //TODO: Add in checks to make sure we dont accidentally overflow the command buffer
-  end = split_str(buf, CMDSIZE, ' ');
-  
-  if (*buf == 0)
-    return;
-  
-  else if (!strcmp(buf, "reboot")) {
-    reboot(NULL);
-  }
-
-  else if (!strcmp(buf, "get_pcie_windows")) {
-    rp1_read_pcie_windows();
-  }
-
-  else if (!strcmp(buf, "print_pcie_cfg")) {
-    print_pcie_cfg();
-  }
-
-  else if (!strcmp(buf, "sem_test")) {
-    sem_test();
-  }
-
-  else if (!strcmp(buf, "print_long_test")) {
-    print_long_test();
-  }
-
-  else if (!strcmp(buf, "heap_test")) {
-    heap_test();
-  }
-  
-  else if (!strcmp(buf, "prime_multicore_test")) {
-    u64 args[3];
-
-    char *nxt;
-    nxt = buf;
-  
-    for (int i = 0; i < 3; i++) {
-      //args[i] = 0ULL;
-      nxt = split_get_next(nxt, end);
-      if (nxt == NULL)
-        goto _err_parse;
-      args[i] = strtol(nxt, 10);
-    }
-  
-    prime_multicore_test(args[0], args[1], args[2]);
-    return;
-    _err_parse: LOG_ERROR("Must provide 3 integer arguments to prime_multicore_test\n\r");
-  }
-
-  else if(!strcmp(buf, "get_temp")) {
-    get_temp();
-  }
-  else if (!strcmp(buf, "help")){
-    help();
-  }
-
-  else {
-    char *tmp;
-    printf("Invalid command: %s\n\r", buf);
-    help();
-
-    tmp = buf;
-    printf("command hex encoding\n\r");
-    while (*tmp != '\0') {
-      printf("0x%x ", *tmp);
-      tmp++;
-    }
-    printf("\n\r");
-  }
-}*/
 
 //handles newline and returns new current command position
 static inline char *_handle_newline(char *cmd, char* cur) {
