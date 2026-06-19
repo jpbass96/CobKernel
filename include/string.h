@@ -5,6 +5,7 @@
 int strlen(char *str, u32 size);
 int strcmp(const char *s1, const char *s2);
 void memcpy(void *src, void *dst, size_t size);
+void memset(void *dst, int val, size_t size);
 
 //split string by token. Replaces all occurences of
 //token in the buffer provided with \0

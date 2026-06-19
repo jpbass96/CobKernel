@@ -18,6 +18,25 @@ void memcpy(void *src, void *dst, size_t size) {
     }
 }
 
+void memset(void *dst, int val, size_t size) {
+    u64 num_qwords, idx;
+    u8 remainder;
+    num_qwords = size>>3;
+    remainder = size - (num_qwords << 3);
+    u64 val64 = val & 0xff;
+    u64 packed_val = val64 | (val64 <<8) | (val64<<16)  | (val64<<24)  | (val64<<32)  | (val64<<40)  | (val64<<48)  | (val64<<56);
+    for (idx = 0; idx < num_qwords; idx++) {
+        *(u64*)dst = packed_val;
+        dst+=8;
+    }
+
+    //fill in remaining bytes. Should be between 0-7
+    for (idx = 0; idx < remainder; idx++) {
+        *(u8*)dst++ = val;
+    }
+}
+
+
 int strlen(char *str, u32 size) {
     int idx = 0;
     while ((*str != '\0') && (idx < size)) {
