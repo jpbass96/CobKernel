@@ -18,6 +18,8 @@
 #include "rp1_pcie.h"
 #include "malloc.h"
 #include "work_queue.h"
+#include "device.h"
+
 
 extern u8 console_initialized;
 struct work_queue_entry *queues[3];
@@ -133,6 +135,8 @@ int main (void *heap_start, void* heap_end)
   }
 
 
+  init_devices();
+  
   start_console();
    
   return 0;
