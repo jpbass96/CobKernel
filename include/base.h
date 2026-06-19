@@ -27,7 +27,24 @@
 //Only window 0 is configured. It is configured such that CPU address 0x1c00000000
 //Points directly to the address configured in BAR1. This means that CPU addr
 //0x1c00000000 maps to 0xC040000000 in the RP1 Peripheral System Address map.
-#define UART_BASE 0x0000001c00030000ULL
+#define PCIE2_BAR1_BASE  0x0000001c00000000ULL
+
+//#define RP1_USB0_BASE PCIE2_BAR1_BASE + 0x160000ULL
+//#define RP1_USB1_BASE PCIE2_BAR1_BASE + 0x164000ULL
+
+//from rp1.dtsi
+//rp1_usb0: usb@200000 {
+//			reg = <0xc0 0x40200000  0x0 0x100000>;
+#define RP1_USB0_BASE PCIE2_BAR1_BASE + 0x200000ULL
+
+//rp1_usb1: usb@300000 {
+//			reg = <0xc0 0x40300000  0x0 0x100000>;
+#define RP1_USB1_BASE PCIE2_BAR1_BASE + 0x300000ULL
+
+//rp1_uart0: serial@30000 {
+//			compatible = "arm,pl011-axi";
+//			reg = <0xc0 0x40030000  0x0 0x100>;
+#define UART_BASE PCIE2_BAR1_BASE + 0x30000ULL
 
 //from bcm2712.dtsi
 //axi: axi {
