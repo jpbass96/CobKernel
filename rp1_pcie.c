@@ -3,6 +3,7 @@
 #include "util.h"
 #include "printf.h"
 #include "pci_ecam.h"
+#include "console.h"
 
 //add GPL header here for code lifted from linux kernel.
 
@@ -43,6 +44,13 @@
 #define SIZE_1M (0x100000)
 
 #define PCIE_MISC_MISC_CTRL                             0x4008
+
+
+#define PCIE_BRCM_MAX_INBOUND_WINS			16
+#define PCIE_MISC_RC_BAR1_CONFIG_LO			0x402c
+#define  PCIE_MISC_RC_BAR1_CONFIG_LO_SIZE_MASK		0x1f
+
+#define PCIE_MISC_RC_BAR4_CONFIG_LO			0x40d4
 
 
 
@@ -108,7 +116,7 @@ void rp1_pcie_cfg_write(u8 bus, u8 devfn, u16 off, u32 data) {
   rp1_pcie_write32(addr, data);
 }
 
-void rp1_read_pcie_windows() {
+void rp1_pcie_print_outbound_windows() {
 
 
   for (int i = 0; i < NUM_WINDOWS; i++) {
@@ -148,12 +156,57 @@ void rp1_read_pcie_windows() {
     //printf("Window %d, cpu_low %d, cpu_hi %d\n\r", i, cpu_lo, cpu_hi);
     //printf("Window %d, cpu_low %x, cpu_hi %x\n\r", i, cpu_lo, cpu_hi);
     
-    printf("Window %d %lx bytes, cpu_addr: %lx -> pcie_addr: %lx\n\r", i, (cpu_limit - cpu_addr), cpu_addr, pcie_addr);
-    printf("Window %d %x bytes, cpu_addr: %x -> pcie_addr: %x\n\r", i, (u32)(cpu_limit - cpu_addr),  (u32)cpu_addr,  (u32)pcie_addr);
-    printf("Window %d %x bytes_hi, cpu_addr_hi: %x -> pcie_addr_hi: %x\n\r", i,  (u32)((cpu_limit - cpu_addr) >> 32),  (u32)(cpu_addr >> 32),  (u32)(pcie_addr >> 32));
+    printf("Outbound Window %d 0x%lx bytes, cpu_addr: 0x%lx -> pcie_addr: 0x%lx\n\r", i, (cpu_limit - cpu_addr), cpu_addr, pcie_addr);
+    //printf("Outbound Window %d %x bytes, cpu_addr: %x -> pcie_addr: %x\n\r", i, (u32)(cpu_limit - cpu_addr),  (u32)cpu_addr,  (u32)pcie_addr);
+  //  printf("Outbound Window %d %x bytes_hi, cpu_addr_hi: %x -> pcie_addr_hi: %x\n\r", i,  (u32)((cpu_limit - cpu_addr) >> 32),  (u32)(cpu_addr >> 32),  (u32)(pcie_addr >> 32));
 
-    printf("MISC_CTRL: %x\n\r", rp1_pcie_read32(PCIE_MISC_MISC_CTRL));
+    //printf("MISC_CTRL: %x\n\r", rp1_pcie_read32(PCIE_MISC_MISC_CTRL));
 
+  }
+}
+
+
+
+#if 0
+/*
+ * This is to convert the size of the inbound "BAR" region to the
+ * non-linear values of PCIE_X_MISC_RC_BAR[123]_CONFIG_LO.SIZE
+ */
+static int brcm_pcie_encode_ibar_size(u64 size)
+{
+	int log2_in = ilog2(size);
+
+	if (log2_in >= 12 && log2_in <= 15)
+		/* Covers 4KB to 32KB (inclusive) */
+		return (log2_in - 12) + 0x1c;
+	else if (log2_in >= 16 && log2_in <= 36)
+		/* Covers 64KB to 64GB, (inclusive) */
+		return log2_in - 15;
+	/* Something is awry so disable */
+	return 0;
+}
+
+static void decode_ibar_size(u64 regval) {
+
+}
+#endif
+
+static u32 brcm_bar_reg_offset(int bar)
+{
+	if (bar <= 3)
+		return PCIE_MISC_RC_BAR1_CONFIG_LO + 8 * (bar - 1);
+	else
+		return PCIE_MISC_RC_BAR4_CONFIG_LO + 8 * (bar - 4);
+}
+
+void rp1_pcie_print_inbound_windows() {
+  u64 reg;
+  for (int i = 0; i < PCIE_BRCM_MAX_INBOUND_WINS; i++) {
+    uintptr bar_addr = brcm_bar_reg_offset(i);
+    reg = rp1_pcie_read32(bar_addr);
+    reg = reg | (((u64)rp1_pcie_read32(bar_addr+4)) << 32);
+
+    LOG_INFO("Inbound Window: 0x%lx\n\r", reg);
   }
 }
 
@@ -167,3 +220,11 @@ int rp1_pcie_link_up() {
   }
   return -1;
 }
+
+int print_pcie_windows(void *params) {
+  rp1_pcie_print_inbound_windows();
+  rp1_pcie_print_outbound_windows();
+  return 0;
+}
+
+REGISTER_COMMAND("print_pcie_windows", "nohelp", print_pcie_windows, 0)
