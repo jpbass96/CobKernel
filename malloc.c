@@ -159,6 +159,16 @@ void *_malloc(struct memory_region *region, size_t num_bytes) {
     LOG_DEBUG("Returning address 0x%lx\n\r", addr);
      return addr;
 }
+//dumb aligned implementation. relies on fact that we always return the start of a page.
+void *_malloc_aligned(struct memory_region *region, size_t num_bytes,  u64 align) {
+    if (align > region->page_size) {
+        LOG_ERROR("cannot allign allocation to 0x%lx\n\r", align);
+        return NULL;
+    }
+
+    return _malloc(region, num_bytes);
+}
+
 
 void _free(struct memory_region *region, void *addr) {
     size_t page_entry_idx;
