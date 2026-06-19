@@ -209,12 +209,13 @@ int allocate_device_ctx_arr(struct usb_ctrl *ctrl) {
     u64 numbytes;
     u64 context_struct_size;
 
-    ctrl->pgsize = read_opreg(ctrl, PAGESIZE) << 12;
+    ctrl->pgsize = read_opreg(ctrl, PAGESIZE);
+    ctrl->pgsize = 1 << (read_opreg(ctrl, PAGESIZE) + 12);
 
     reg = xhci_read32(ctrl, HCCPARAMS1);
     //double entry size if 64 byte context data structures used
     context_struct_size = XHCI_MIN_CONTEXT_STRUCT_SIZE << get_bits_mask(reg, HCCPARAMS1_CSZ_MASK, HCCPARAMS1_CSZ_LSB);
-    LOG_INFO("pgsize is 0x%x, HCCPARAMS1 is 0x%lx\n\r", ctrl->pgsize, reg);
+    LOG_INFO("pgsize is 0x%x, HCCPARAMS1 is 0x%lx, context struct size is 0x%lx\n\r", ctrl->pgsize, reg, context_struct_size);
 
     //Allocate dcbaap as per XHCI spec section 6.1
     //allocate data for each entry up front
@@ -414,7 +415,7 @@ int poll_event_queue(struct usb_ctrl *ctrl, struct xhci_trb_ring *ring) {
 
     ring->dq_nxt = get_next_trb(ring, ring->dq_nxt, 1);
 
-    write_runtime_reg(ctrl, XHCI_IR_ERDP(0), ((u64)ring->dq_nxt) & 0xFFFFFFFF);
+    write_runtime_reg(ctrl, XHCI_IR_ERDP(0), (((u64)ring->dq_nxt) & 0xFFFFFFF0)  | (1<<3));
     write_runtime_reg(ctrl, XHCI_IR_ERDP(0)+4, (((u64)ring->dq_nxt)>>32) & 0xFFFFFFFF);
     return TRB_STATUS_CC_GET_BITS(event_trb->status);
 }
@@ -444,16 +445,21 @@ int execute_xhci_noop(struct usb_ctrl *ctrl) {
     LOG_INFO("executing NOOP cmd \n\r");
     //set cycle bit to advance enqueue pointer, and get the next trb in the ring
     nxt->control = set_bits(nxt->control, ctrl->cmdring->cs, TRB_CTRL_C_LSB, 1);
+    asm volatile("isb" ::: "memory");
+    asm volatile("dsb sy" ::: "memory");
+
+
+
+    write_db_reg(ctrl, 0, DB_TGT_CMD);
     
+
+    ret =  poll_event_queue(ctrl, ctrl->primary_event_ring);
+
     LOG_INFO("next trb address is 0x%lx\n\r", nxt);
     LOG_INFO("TRB ptr is 0x%lx\n\r", nxt->data_ptr);
     LOG_INFO("TRB Status is 0x%x\n\r", nxt->status);
     LOG_INFO("TRB CONTROL is 0x%x\n\r", nxt->control);
     ctrl->cmdring->enq_nxt = get_next_trb(ctrl->cmdring, ctrl->cmdring->enq_nxt, 1);
-
-    write_db_reg(ctrl, 0, DB_TGT_CMD);
-
-    ret =  poll_event_queue(ctrl, ctrl->primary_event_ring);
 
     LOG_INFO("iman register: 0x%x\n\r", read_runtime_reg(ctrl, XHCI_IMAN(0)));
     LOG_INFO("iman register: 0x%x\n\r", read_runtime_reg(ctrl, XHCI_IR_ERDP(0)));
@@ -578,7 +584,12 @@ struct device* xhci_probe(void *base_addr) {
    
 
     //make sure all previous writes finish before enabling the controller
-    asm volatile("dmb sy" ::: "memory");
+    asm volatile("isb" ::: "memory");
+    asm volatile("dsb sy" ::: "memory");
+
+    LOG_INFO("--------------CTRL REGS BEFORE ENABLE-------------------------------\n\r");
+    dump_ctrl_regs(ctrl);
+    LOG_INFO("--------------CTRL REGS BEFORE ENABLE-------------------------------\n\r");
 
     LOG_INFO("starting xhci controller\n\r");
     if (enable_xhci_ctrl(ctrl) != 0 ) {
@@ -591,14 +602,16 @@ struct device* xhci_probe(void *base_addr) {
         LOG_INFO("PORT %d Status: 0x%lx\n\r", i, read_opreg(ctrl, 0x400 + (0x10*i)));
     }
     
-
+    LOG_INFO("--------------CTRL REGS BEFORE EXECUTE-------------------------------\n\r");
     dump_ctrl_regs(ctrl);
-
+    LOG_INFO("--------------CTRL REGS BEFORE EXECUTE-------------------------------\n\r");
     reg = execute_xhci_noop(ctrl);
 
     LOG_INFO("Completino code: %lx\n\r", reg);
 
+    LOG_INFO("--------------CTRL REGS AFTER EXECUTE-------------------------------\n\r");
     dump_ctrl_regs(ctrl);
+    LOG_INFO("--------------CTRL REGS AFTER EXECUTE-------------------------------\n\r");
     dump_all_tables(ctrl);
     return dev;
 }
