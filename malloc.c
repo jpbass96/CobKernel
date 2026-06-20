@@ -27,7 +27,7 @@
 #define PAGE_ENTRY_VALID(entry) ((entry) & 1)
 #define IS_FIRST_PAGE_IN_BLOCK(entry)  (((entry) & ~0xFFEULL) == 1)
 struct memory_region kernel_heap;
-
+struct memory_region dma_heap;
 //Initialize a memory region struct with the given start address and size. It is assumed
 //The heap will grow up from "top". The first x bytes are used to store the page table,
 //so the actual size of the region will be less than the requested size. The page table
@@ -223,4 +223,13 @@ void init_kheap(void *start, size_t size, size_t page_size) {
     LOG_DEBUG("  Page Table Entries: %ld\n\r", kernel_heap.page_table_entries);
     LOG_DEBUG("  Memory Region Starts at: 0x%lx\n\r", kernel_heap.top);
     LOG_DEBUG("  Allocatable Heap Size: 0x%lx\n\r", kernel_heap.size);
+
+
+    init_memory_region(start + size, size, page_size, &dma_heap);
+    LOG_DEBUG("DMA Heap Initialized: \n\r");
+    LOG_DEBUG("  Page Table Starts at: 0x%lx\n\r", dma_heap.page_table);
+    LOG_DEBUG("  Page Table Entries: %ld\n\r", dma_heap.page_table_entries);
+    LOG_DEBUG("  Memory Region Starts at: 0x%lx\n\r", dma_heap.top);
+    LOG_DEBUG("  Allocatable Heap Size: 0x%lx\n\r", dma_heap.size);
+
 }

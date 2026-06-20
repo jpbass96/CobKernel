@@ -4,10 +4,17 @@
 #include "arm.h"
 
 #define kmalloc(bytes) _malloc(&kernel_heap, bytes)
-#define kmalloc_aligned(bytes, align) _malloc_aligned(&kernel_heap, bytes, align);
+#define kmalloc_aligned(bytes, align) _malloc_aligned(&kernel_heap, bytes, align)
 #define kfree(addr) _free(&kernel_heap, addr)
 
+#define dma_alloc_aligned(bytes, align) _malloc_aligned(&dma_heap, bytes, align)
+#define dma_free(addr) _free(&dma_heap, addr)
+
+//#define dma_alloc_aligned(bytes, align) _malloc_aligned(&kernel_heap, bytes, align)
+//#define dma_free(addr) _free(&kernel_heap, addr)
+
 extern struct memory_region kernel_heap;
+extern struct memory_region dma_heap;
 
 struct memory_region {
     void *top;
