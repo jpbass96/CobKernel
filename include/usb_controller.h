@@ -62,7 +62,7 @@
 #define CRCR_CRR_LSB 3 //command ring running status
 #define CRCR_CRR_MASK 0x8
 #define CRCR_CRPTR_LSB 6 //command ring pointer (lower bits)
-#define CRCR_CRPTR_MASK 0xFFFFFFFFFFFFFFC0
+#define CRCR_CRPTR_MASK 0xFFFFFFFFFFFFFFC0ULL
 
 
 #define DCBAAP 0x30
@@ -119,7 +119,7 @@
 
 #define TRB_STATUS_CC_LSB 24
 #define TRB_STATUS_CC_MASK 0xFF000000
-#define TRB_STATUS_CC_GET_BITS(val) ((val) & TRB_STATUS_CC_MASK >> TRB_STATUS_CC_LSB)
+#define TRB_STATUS_CC_GET_BITS(val) (((val) & TRB_STATUS_CC_MASK) >> TRB_STATUS_CC_LSB)
 
 //transfer ring TRBs
 #define TRB_TYPE_LINK 6

@@ -96,7 +96,7 @@ int reset_xhci_ctrl(struct usb_ctrl *ctrl) {
     return 0;
  }
 
-struct xhci_trb_ring *allocate_trb_ring(struct usb_ctrl *ctrl, u32 entries, u32 align) {
+struct xhci_trb_ring *allocate_trb_ring(struct usb_ctrl *ctrl, u32 entries, u32 align, u8 link_end) {
     struct xhci_trb_ring *ring;
     void *mem;
     size_t bytes;
@@ -105,7 +105,7 @@ struct xhci_trb_ring *allocate_trb_ring(struct usb_ctrl *ctrl, u32 entries, u32 
     trb_bytes = sizeof(struct xhci_trb)*entries;
     bytes = sizeof(struct xhci_trb_ring) + trb_bytes;
     
-    mem = kmalloc_aligned(bytes, align);
+    mem = dma_alloc_aligned(bytes, align) ;
 
     if (mem == NULL) {
         return NULL;
@@ -115,23 +115,23 @@ struct xhci_trb_ring *allocate_trb_ring(struct usb_ctrl *ctrl, u32 entries, u32 
     ring = (struct xhci_trb_ring*)(mem + sizeof(struct xhci_trb)*entries);
     ring->head = (struct xhci_trb *)mem;
     //initialize whole ring to 0
-    LOG_INFO("Initializing %lx bytes to 0 at ring head\n\r", trb_bytes);
+    LOG_INFO("Initializing %ld bytes to 0 at ring head\n\r", trb_bytes);
     memset((void*)ring->head, 0, trb_bytes);
 
     ring->dq_nxt = ring->head;
     ring->enq_nxt = ring->head;
     ring->tail = ring->head + (entries-1);
-    ring->tail->data_ptr = (u64)ring->head;
 
-    //set TC bit so PCS/CCS toggle when reaching link TRB
-    ring->tail->control = TRB_CTRL_TYPE_BITS(TRB_TYPE_LINK) | TRB_CTRL_TC_BITS(1); 
-    //ring->tail->control = XHCI_SET_BITS(TRB_CTRL_TYPE, TRB_TYPE_LINK) | XHCI_SET_BITS(TRB_CTRL_TC, 1);
+    if (link_end == 1) {
+        ring->tail->data_ptr = (u64)ring->head;
+        //set TC bit so PCS/CCS toggle when reaching link TRB
+        ring->tail->control = TRB_CTRL_TYPE_BITS(TRB_TYPE_LINK) | TRB_CTRL_TC_BITS(1); 
+    }
 
     //initialize PCS to 1 as per XHCI spec 4.9.2.2
     ring->cs = 1;
     return ring;
 }
-
 
 
 void free_trb_ring(struct xhci_trb_ring *ring) {
@@ -146,7 +146,7 @@ struct xhci_ers_table *allocate_ers_table(struct usb_ctrl *ctrl, u32 num_entries
 
     ers_entry_bytes = sizeof(struct xhci_ers_entry)*num_entries;
     bytes = ers_entry_bytes + sizeof(struct xhci_ers_table);
-    mem = kmalloc_aligned(bytes,  XHCI_ERS_TABLE_ALIGN);
+    mem = dma_alloc_aligned(bytes,  XHCI_ERS_TABLE_ALIGN) ;
     
     if (mem == NULL) {
         LOG_ERROR("Could not allocate ERS table\n\r");
@@ -158,7 +158,6 @@ struct xhci_ers_table *allocate_ers_table(struct usb_ctrl *ctrl, u32 num_entries
     ers_table->head = (struct xhci_ers_entry *) mem;
     ers_table->entries = num_entries;
 
-  
     return ers_table;
 }
 
@@ -177,7 +176,7 @@ int allocate_scratchpad_buffs(struct usb_ctrl *ctrl) {
     reg = HCSPARAMS2_MSPB_GET_BITS(reg);
     //allocate enough space for all scratchpad buffers + each 8 byte address in the scratchpad base address table
     scratchpad_buff_size = ctrl->pgsize * reg;
-    mem = kmalloc_aligned(scratchpad_buff_size + (reg*SCRATCHPAD_BUFFER_ENTRY_SIZE), ctrl->pgsize);
+    mem = dma_alloc_aligned(scratchpad_buff_size + (reg*SCRATCHPAD_BUFFER_ENTRY_SIZE), ctrl->pgsize) ;
     LOG_INFO("Scratchpad mem at 0x%lx with %d entries of size %d\n\r", mem, reg, ctrl->pgsize);
     //set first device context entry to scratchpad buffer array.
     *(u64*)ctrl->device_context_arr = (u64)mem + scratchpad_buff_size; 
@@ -222,7 +221,7 @@ int allocate_device_ctx_arr(struct usb_ctrl *ctrl) {
     //allocate extra data to align context structs
     //align to minimum 4096 byte page size to avoid page boundary crossings
     numbytes = (ctrl->max_devices + 1) * XHCI_CONTEXT_ENTRY_SIZE + ((ctrl->max_devices)*context_struct_size) + (XHCI_MIN_PGSIZE-1);
-    ctrl->device_context_arr = kmalloc_aligned(numbytes, XHCI_MIN_PGSIZE);
+    ctrl->device_context_arr = dma_alloc_aligned(numbytes, XHCI_MIN_PGSIZE) ;
 
     if (ctrl->device_context_arr == NULL) {
         return -1;
@@ -241,7 +240,7 @@ int allocate_device_ctx_arr(struct usb_ctrl *ctrl) {
         return -1;
     
     write_opreg(ctrl, DCBAAP, (u64)ctrl->device_context_arr);
-    write_opreg(ctrl, DCBAAP+4, (u64)ctrl->device_context_arr >> 32);
+    write_opreg(ctrl, DCBAAP+4, (u64)(ctrl->device_context_arr)>>32);
     entry = (u64*)ctrl->device_context_arr;
     LOG_INFO("num devices is %d\n\r",  ctrl->max_devices);
     //initialize device context array
@@ -338,9 +337,14 @@ void dump_ers_table (struct usb_ctrl *ctrl) {
 
     LOG_INFO("  ERS table has %ld entries\n\r", size);
     reg = (u64)read_runtime_reg(ctrl, XHCI_IR_ERSTBA(0)) | ((u64)read_runtime_reg(ctrl, XHCI_IR_ERSTBA(0)+4) << 32);
+   
     struct xhci_ers_entry *cur = (struct xhci_ers_entry *)reg;
     struct xhci_trb *trb;
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < size; i++) {
+        for (int i = 0; i < 4; i++) {
+            u32 *addr = (u32*)(reg + (i*4));
+            LOG_INFO("  ERS entry %d word 0: 0x%lx\n\r", i, *addr);
+        }
         LOG_INFO("entry %d at addr %lx has segment size %d and base 0x%lx\n\r\n\r", i, (u64)cur, cur->ring_segment_size, cur->ring_segment_base);
         trb = (struct xhci_trb *)cur->ring_segment_base;
         dump_trb_ring(trb, cur->ring_segment_size);
@@ -369,41 +373,35 @@ void dump_all_tables(struct usb_ctrl *ctrl) {
 //of the next trb should not set this flag. For now assuming tail is always a link TRB with the
 //toggle cycle bit set.
 static inline struct xhci_trb *get_next_trb(struct xhci_trb_ring *ring, struct xhci_trb *cur, u8 update_cs) {
+    u8 type;
+    cur = cur+1;
     //skip link TRB
-    if (cur == (ring->tail - 1)) {
+    type = get_bits_mask(cur->control, TRB_CTRL_TRB_TYPE_MASK, TRB_CTRL_TRB_TYPE_LSB);
+    if (type ==  TRB_TYPE_LINK ) {
         if (update_cs) {
+    
+            //if we pass the link state on an update cs set the cycle bit
+            ring->tail->control = set_bits(  ring->tail->control, ring->cs, TRB_CTRL_C_LSB, 1);
             ring->cs = !ring->cs;
         }
-        return ring->head;
+        return (struct xhci_trb *)cur->data_ptr;
     }
 
-    return cur+1;
+    return cur;
 }
 
-int poll_event_queue(struct usb_ctrl *ctrl, struct xhci_trb_ring *ring) {
+int poll_event_queue(struct usb_ctrl *ctrl, struct xhci_trb_ring *event_ring, struct xhci_trb_ring *cmd_ring) {
     struct xhci_trb *event_trb;
-    event_trb = ring->dq_nxt;
+    event_trb = event_ring->dq_nxt;
+    u32 status;
+    u32 val;
+    int timeout;
 
 
-    u32 timeout = 0;
-    LOG_INFO("waiting on event trb at 0x%lx\n\r", event_trb);
-    LOG_INFO("waiting for ccs value %d\n\r", ring->cs);
-    LOG_INFO("current TRB control value: %d\n\r", event_trb->control);
-    for (;;) {
-        //wait for xhci controller to set cycle bit to current CCS value
-        if (TRB_CTRL_C_BITS(event_trb->control) == ring->cs) {
-            break;
-        }
-
-        //wait
-        wait_ms(250);
-        timeout+=250;
-        LOG_INFO("current TRB control value: %d\n\r", event_trb->control);
-        if (timeout == 1000) {
-            LOG_ERROR("timeout on TRB completion\n\r");
+    timeout = read32_poll_timeout(val, (uintptr)&event_trb->control,  TRB_CTRL_C_BITS(val) == event_ring->cs, 500, 5000);
+    if (timeout != 0 ) {
+        LOG_ERROR("timeout on TRB completion\n\r");
             return TRB_INVALID;
-            break;
-        }
     }
     
     LOG_INFO("TRB completion detected.\n\r");
@@ -411,13 +409,24 @@ int poll_event_queue(struct usb_ctrl *ctrl, struct xhci_trb_ring *ring) {
     LOG_INFO("TRB Status is 0x%x\n\r", event_trb->status);
     LOG_INFO("TRB CONTROL is 0x%x\n\r", event_trb->control);
     
-    
+    if (event_ring->dq_nxt == event_ring->tail) {
+        event_ring->dq_nxt = event_ring->head;
+    } else {
+        event_ring->dq_nxt++;
+    }
 
-    ring->dq_nxt = get_next_trb(ring, ring->dq_nxt, 1);
+    LOG_INFO("Moving to next event ring dqeueu 0x%lx\n\r", event_ring->dq_nxt);
 
-    write_runtime_reg(ctrl, XHCI_IR_ERDP(0), (((u64)ring->dq_nxt) & 0xFFFFFFF0)  | (1<<3));
-    write_runtime_reg(ctrl, XHCI_IR_ERDP(0)+4, (((u64)ring->dq_nxt)>>32) & 0xFFFFFFFF);
-    return TRB_STATUS_CC_GET_BITS(event_trb->status);
+    write_runtime_reg(ctrl, XHCI_IR_ERDP(0), (((u64)event_ring->dq_nxt) & 0xFFFFFFF0)  | (1<<3));
+    write_runtime_reg(ctrl, XHCI_IR_ERDP(0)+4, (((u64)event_ring->dq_nxt)>>32) & 0xFFFFFFFF);
+
+    cmd_ring->dq_nxt = (struct xhci_trb *)event_trb->data_ptr;
+
+    status = event_trb->status;
+    event_trb->status = TRB_INVALID;
+    LOG_INFO("status is 0x%x, compl code is %x\n\r", status, TRB_STATUS_CC_GET_BITS(status));
+    //need to add logic to move the dequeue pointer of the associated command ring
+    return TRB_STATUS_CC_GET_BITS(status);
 }
 
 
@@ -428,9 +437,6 @@ int execute_xhci_noop(struct usb_ctrl *ctrl) {
     int ret;
     nxt = ctrl->cmdring->enq_nxt;
 
-
-
-
     //check if ring is full
     if (get_next_trb(ctrl->cmdring, ctrl->cmdring->enq_nxt, 0) == ctrl->cmdring->dq_nxt) {
         //TODO: make this wait for the ring to be empty.
@@ -440,29 +446,18 @@ int execute_xhci_noop(struct usb_ctrl *ctrl) {
     nxt->data_ptr = 0;
     nxt->status = 0;
     nxt->control = TRB_CTRL_TYPE_BITS(TRB_TYPE_CMD_NOOP);
-    asm volatile("dmb sy" ::: "memory");
 
     LOG_INFO("executing NOOP cmd \n\r");
     //set cycle bit to advance enqueue pointer, and get the next trb in the ring
     nxt->control = set_bits(nxt->control, ctrl->cmdring->cs, TRB_CTRL_C_LSB, 1);
-    asm volatile("isb" ::: "memory");
-    asm volatile("dsb sy" ::: "memory");
-
-
-
+    asm volatile("dsb st" ::: "memory");
+   
     write_db_reg(ctrl, 0, DB_TGT_CMD);
     
-
-    ret =  poll_event_queue(ctrl, ctrl->primary_event_ring);
-
-    LOG_INFO("next trb address is 0x%lx\n\r", nxt);
-    LOG_INFO("TRB ptr is 0x%lx\n\r", nxt->data_ptr);
-    LOG_INFO("TRB Status is 0x%x\n\r", nxt->status);
-    LOG_INFO("TRB CONTROL is 0x%x\n\r", nxt->control);
+    ret =  poll_event_queue(ctrl, ctrl->primary_event_ring, ctrl->cmdring);
+    
     ctrl->cmdring->enq_nxt = get_next_trb(ctrl->cmdring, ctrl->cmdring->enq_nxt, 1);
 
-    LOG_INFO("iman register: 0x%x\n\r", read_runtime_reg(ctrl, XHCI_IMAN(0)));
-    LOG_INFO("iman register: 0x%x\n\r", read_runtime_reg(ctrl, XHCI_IR_ERDP(0)));
     return ret;
 }
 
@@ -531,7 +526,7 @@ struct device* xhci_probe(void *base_addr) {
         LOG_INFO("Context device Entry %d: 0x%lx\n\r",  i, *entry);
     }
 
-    ctrl->cmdring = allocate_trb_ring(ctrl, TRB_RING_MIN_SEGMENT_SIZE, XHCI_TRB_RING_ALIGN);
+    ctrl->cmdring = allocate_trb_ring(ctrl, TRB_RING_MIN_SEGMENT_SIZE, XHCI_TRB_RING_ALIGN, 1);
     if (ctrl->cmdring == NULL) {
         free_device_ctx_arr(ctrl);
         return NULL;
@@ -539,7 +534,7 @@ struct device* xhci_probe(void *base_addr) {
 
     LOG_INFO("cmd ring at 0x%lx, head at 0x%lx\n\r", ctrl->cmdring, ctrl->cmdring->head);
 
-    ctrl->primary_event_ring = allocate_trb_ring(ctrl, TRB_RING_MIN_SEGMENT_SIZE, XHCI_TRB_RING_ALIGN);
+    ctrl->primary_event_ring = allocate_trb_ring(ctrl, TRB_RING_MIN_SEGMENT_SIZE, XHCI_TRB_RING_ALIGN, 0);
      if (ctrl->primary_event_ring == NULL) {
         free_trb_ring(ctrl->cmdring);
         free_device_ctx_arr(ctrl);
@@ -562,7 +557,7 @@ struct device* xhci_probe(void *base_addr) {
     write_opreg(ctrl, CRCR, (u32)reg);
     write_opreg(ctrl, CRCR+4, (u32)(reg>>32));
     
-    write_runtime_reg(ctrl, XHCI_IMAN(0), 2);
+    write_runtime_reg(ctrl, XHCI_IMAN(0), 0);
 
     //allocate a 1 segment ERS table of size 16 TRB entries
     ctrl->ers_table =  allocate_ers_table(ctrl, 1);
@@ -578,40 +573,37 @@ struct device* xhci_probe(void *base_addr) {
     write_runtime_reg(ctrl, XHCI_IR_ERDP(0), (u32)(reg & 0xFFFFFFC0));
     write_runtime_reg(ctrl, XHCI_IR_ERDP(0) + 4, (u32)((reg>>32) & 0xFFFFFFFF));
     reg =  (u64)(ctrl->ers_table->head);
+   
+    //volatile u64 *addr =  (u64*)(ctrl->mmio_base + ctrl->runtime_reg_base +  XHCI_IR_ERSTBA(0));
+    //*addr = reg;
+    //LOG_INFO("wrote base table to address 0x%lx\n\r", (u64)(addr));
     write_runtime_reg(ctrl, XHCI_IR_ERSTBA(0), (u32)(reg & 0xFFFFFFC0));
     write_runtime_reg(ctrl, XHCI_IR_ERSTBA(0) + 4, (u32)((reg>>32) & 0xFFFFFFFF));
 
-   
 
     //make sure all previous writes finish before enabling the controller
-    asm volatile("isb" ::: "memory");
-    asm volatile("dsb sy" ::: "memory");
-
-    LOG_INFO("--------------CTRL REGS BEFORE ENABLE-------------------------------\n\r");
-    dump_ctrl_regs(ctrl);
-    LOG_INFO("--------------CTRL REGS BEFORE ENABLE-------------------------------\n\r");
+    asm volatile("dsb st" ::: "memory");
+   
 
     LOG_INFO("starting xhci controller\n\r");
     if (enable_xhci_ctrl(ctrl) != 0 ) {
         return NULL;
     }
 
-    
     LOG_INFO("%d ports, %d intrs, %d devices\n\r", ctrl->max_ports, ctrl->max_intrs, ctrl->max_devices);
     for (int i = 0; i < ctrl->max_ports; i++) {
         LOG_INFO("PORT %d Status: 0x%lx\n\r", i, read_opreg(ctrl, 0x400 + (0x10*i)));
     }
     
-    LOG_INFO("--------------CTRL REGS BEFORE EXECUTE-------------------------------\n\r");
-    dump_ctrl_regs(ctrl);
-    LOG_INFO("--------------CTRL REGS BEFORE EXECUTE-------------------------------\n\r");
-    reg = execute_xhci_noop(ctrl);
-
-    LOG_INFO("Completino code: %lx\n\r", reg);
-
-    LOG_INFO("--------------CTRL REGS AFTER EXECUTE-------------------------------\n\r");
-    dump_ctrl_regs(ctrl);
-    LOG_INFO("--------------CTRL REGS AFTER EXECUTE-------------------------------\n\r");
+   
+    for (int i = 0; i < 33; i++) {
+        reg = execute_xhci_noop(ctrl);
+        LOG_INFO("Completino code: %lx\n\r", reg);
+        if (reg != TRB_SUCCESS) {
+            break;
+        }
+    }
+   
     dump_all_tables(ctrl);
     return dev;
 }
